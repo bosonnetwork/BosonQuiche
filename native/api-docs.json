@@ -1,0 +1,2109 @@
+{
+  "version": "0.30.1",
+  "source": "https://github.com/cloudflare/quiche/tree/0.30.1",
+  "notice": "Documentation adapted from Cloudflare quiche under BSD-2-Clause; see NOTICE and META-INF/LICENSE-quiche.",
+  "types": {
+    "lib.RecvInfo": {
+      "text": "Ancillary information about incoming packets.",
+      "source": "lib.rs",
+      "line": 519,
+      "fields": {
+        "from": "The remote address the packet was received from.",
+        "to": "The local address the packet was received on."
+      }
+    },
+    "lib.SendInfo": {
+      "text": "Ancillary information about outgoing packets.",
+      "source": "lib.rs",
+      "line": 529,
+      "fields": {
+        "from": "The local address the packet should be sent from.",
+        "to": "The remote address the packet should be sent to.",
+        "at": "The time to send the packet out.\n\nSee [Pacing] for more details.\n\n[Pacing]: index.html#pacing"
+      }
+    },
+    "lib.Shutdown": {
+      "text": "The side of the stream to be shut down.\n\nThis should be used when calling [`stream_shutdown()`].\n\n[`stream_shutdown()`]: struct.Connection.html#method.stream_shutdown",
+      "source": "lib.rs",
+      "line": 546,
+      "variants": {
+        "Read": "Stop receiving stream data.",
+        "Write": "Stop sending stream data."
+      }
+    },
+    "lib.QlogLevel": {
+      "text": "Qlog logging level.",
+      "source": "lib.rs",
+      "line": 561,
+      "variants": {
+        "Core": "Logs any events of Core importance.",
+        "Base": "Logs any events of Core and Base importance.",
+        "Extra": "Logs any events of Core, Base and Extra importance"
+      }
+    },
+    "lib.Config": {
+      "text": "Stores configuration shared between multiple connections.",
+      "source": "lib.rs",
+      "line": 576,
+      "fields": {
+        "max_pacing_rate": "Send rate limit in Mbps"
+      },
+      "methods": {
+        "new": {
+          "text": "Creates a config object with the given version.\n\n## Examples:\n\n```\nlet config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 634
+        },
+        "with_boring_ssl_ctx_builder": {
+          "text": "Creates a config object with the given version and\n[`SslContextBuilder`].\n\nThis is useful for applications that wish to manually configure\n[`SslContextBuilder`].\n\n[`SslContextBuilder`]: https://docs.rs/boring/latest/boring/ssl/struct.SslContextBuilder.html",
+          "source": "lib.rs",
+          "line": 646
+        },
+        "load_cert_chain_from_pem_file": {
+          "text": "Configures the given certificate chain.\n\nThe content of `file` is parsed as a PEM-encoded leaf certificate,\nfollowed by optional intermediate certificates.\n\n## Examples:\n\n```no_run\n# let mut config = quiche::Config::new(0xbabababa)?;\nconfig.load_cert_chain_from_pem_file(\"/path/to/cert.pem\")?;\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 712
+        },
+        "load_priv_key_from_pem_file": {
+          "text": "Configures the given private key.\n\nThe content of `file` is parsed as a PEM-encoded private key.\n\n## Examples:\n\n```no_run\n# let mut config = quiche::Config::new(0xbabababa)?;\nconfig.load_priv_key_from_pem_file(\"/path/to/key.pem\")?;\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 728
+        },
+        "load_verify_locations_from_file": {
+          "text": "Specifies a file where trusted CA certificates are stored for the\npurposes of certificate verification.\n\nThe content of `file` is parsed as a PEM-encoded certificate chain.\n\n## Examples:\n\n```no_run\n# let mut config = quiche::Config::new(0xbabababa)?;\nconfig.load_verify_locations_from_file(\"/path/to/cert.pem\")?;\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 743
+        },
+        "load_verify_locations_from_directory": {
+          "text": "Specifies a directory where trusted CA certificates are stored for the\npurposes of certificate verification.\n\nThe content of `dir` a set of PEM-encoded certificate chains.\n\n## Examples:\n\n```no_run\n# let mut config = quiche::Config::new(0xbabababa)?;\nconfig.load_verify_locations_from_directory(\"/path/to/certs\")?;\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 759
+        },
+        "set_curves_list": {
+          "text": "Configures the TLS curve preference list.\n\n`curves` is a colon-separated list of curve (a.k.a. group) names, in\norder of preference, e.g. `\"X25519MLKEM768:X25519:P-256:P-384\"`.\nCorresponds to `SSL_CTX_set1_curves_list` (a.k.a.\n`SSL_CTX_set1_groups_list`).",
+          "source": "lib.rs",
+          "line": 777
+        },
+        "verify_peer": {
+          "text": "Configures whether to verify the peer's certificate.\n\nThis should usually be `true` for client-side connections and `false`\nfor server-side ones.\n\nNote that by default, no verification is performed.\n\nAlso note that on the server-side, enabling verification of the peer\nwill trigger a certificate request and make authentication errors\nfatal, but will still allow anonymous clients (i.e. clients that\ndon't present a certificate at all). Servers can check whether a\nclient presented a certificate by calling [`peer_cert()`] if they\nneed to.\n\n[`peer_cert()`]: struct.Connection.html#method.peer_cert",
+          "source": "lib.rs",
+          "line": 787
+        },
+        "discover_pmtu": {
+          "text": "Configures whether to do path MTU discovery.\n\nPMTUD-driven packet limit updates are reported to the application\nthrough [`PathEvent::PmtuUpdated`].\n\nThe default value is `false`.",
+          "source": "lib.rs",
+          "line": 806
+        },
+        "set_pmtud_max_probes": {
+          "text": "Configures the maximum number of PMTUD probe attempts before treating\na probe size as failed.\n\nDefaults to 3 per [RFC 8899 Section 5.1.2](https://datatracker.ietf.org/doc/html/rfc8899#section-5.1.2).\nIf 0 is passed, the default value is used.",
+          "source": "lib.rs",
+          "line": 816
+        },
+        "grease": {
+          "text": "Configures whether to send GREASE values.\n\nThe default value is `true`.",
+          "source": "lib.rs",
+          "line": 825
+        },
+        "log_keys": {
+          "text": "Enables logging of secrets.\n\nWhen logging is enabled, the [`set_keylog()`] method must be called on\nthe connection for its cryptographic secrets to be logged in the\n[keylog] format to the specified writer.\n\n[`set_keylog()`]: struct.Connection.html#method.set_keylog\n[keylog]: https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format",
+          "source": "lib.rs",
+          "line": 832
+        },
+        "set_ticket_key": {
+          "text": "Configures the session ticket key material.\n\nOn the server this key will be used to encrypt and decrypt session\ntickets, used to perform session resumption without server-side state.\n\nBy default a key is generated internally, and rotated regularly, so\napplications don't need to call this unless they need to use a\nspecific key (e.g. in order to support resumption across multiple\nservers), in which case the application is also responsible for\nrotating the key to provide forward secrecy.",
+          "source": "lib.rs",
+          "line": 844
+        },
+        "enable_early_data": {
+          "text": "Enables sending or receiving early data.",
+          "source": "lib.rs",
+          "line": 858
+        },
+        "set_application_protos": {
+          "text": "Configures the list of supported application protocols.\n\nOn the client this configures the list of protocols to send to the\nserver as part of the ALPN extension.\n\nOn the server this configures the list of supported protocols to match\nagainst the client-supplied list.\n\nApplications must set a value, but no default is provided.\n\n## Examples:\n\n```\n# let mut config = quiche::Config::new(0xbabababa)?;\nconfig.set_application_protos(&[b\"http/1.1\", b\"http/0.9\"]);\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 863
+        },
+        "set_application_protos_wire_format": {
+          "text": "Configures the list of supported application protocols using wire\nformat.\n\nThe list of protocols `protos` must be a series of non-empty, 8-bit\nlength-prefixed strings.\n\nSee [`set_application_protos`](Self::set_application_protos) for more\nbackground about application protocols.\n\n## Examples:\n\n```\n# let mut config = quiche::Config::new(0xbabababa)?;\nconfig.set_application_protos_wire_format(b\"\\x08http/1.1\\x08http/0.9\")?;\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 889
+        },
+        "set_max_amplification_factor": {
+          "text": "Sets the anti-amplification limit factor.\n\nThe default value is `3`.",
+          "source": "lib.rs",
+          "line": 919
+        },
+        "set_send_capacity_factor": {
+          "text": "Sets the send capacity factor.\n\nThe default value is `1`.",
+          "source": "lib.rs",
+          "line": 926
+        },
+        "set_initial_rtt": {
+          "text": "Sets the connection's initial RTT.\n\nThe default value is `333`.",
+          "source": "lib.rs",
+          "line": 933
+        },
+        "set_max_outstanding_sent_packets": {
+          "text": "Sets the number of sent packets that can be tracked for loss detection\nbefore the connection is closed.\n\nThis limits the memory used to track sent packets. Packets that only\ncarry ACK frames are counted too. The limit should be larger than the\nexpected maximum congestion window, in packets, otherwise connections\nthat make progress can be closed.\n\nThe connection is closed with a `PROTOCOL_VIOLATION` transport error.\n\n`None` disables this limit. The default value is `22,000`.",
+          "source": "lib.rs",
+          "line": 940
+        },
+        "set_max_idle_timeout": {
+          "text": "Sets the `max_idle_timeout` transport parameter, in milliseconds.\n\nThe default value is infinite, that is, no timeout is used.",
+          "source": "lib.rs",
+          "line": 957
+        },
+        "set_max_recv_udp_payload_size": {
+          "text": "Sets the `max_udp_payload_size transport` parameter.\n\nThe default value is `65527`.",
+          "source": "lib.rs",
+          "line": 965
+        },
+        "set_max_send_udp_payload_size": {
+          "text": "Sets the maximum outgoing UDP payload size.\n\nThe default and minimum value is `1200`.",
+          "source": "lib.rs",
+          "line": 973
+        },
+        "set_initial_max_data": {
+          "text": "Sets the `initial_max_data` transport parameter.\n\nWhen set to a non-zero value quiche will only allow at most `v` bytes of\nincoming stream data to be buffered for the whole connection (that is,\ndata that is not yet read by the application) and will allow more data\nto be received as the buffer is consumed by the application.\n\nWhen set to zero, either explicitly or via the default, quiche will not\ngive any flow control to the peer, preventing it from sending any stream\ndata.\n\nThe default value is `0`.",
+          "source": "lib.rs",
+          "line": 980
+        },
+        "set_initial_max_stream_data_bidi_local": {
+          "text": "Sets the `initial_max_stream_data_bidi_local` transport parameter.\n\nWhen set to a non-zero value quiche will only allow at most `v` bytes\nof incoming stream data to be buffered for each locally-initiated\nbidirectional stream (that is, data that is not yet read by the\napplication) and will allow more data to be received as the buffer is\nconsumed by the application.\n\nWhen set to zero, either explicitly or via the default, quiche will not\ngive any flow control to the peer, preventing it from sending any stream\ndata.\n\nThe default value is `0`.",
+          "source": "lib.rs",
+          "line": 997
+        },
+        "set_initial_max_stream_data_bidi_remote": {
+          "text": "Sets the `initial_max_stream_data_bidi_remote` transport parameter.\n\nWhen set to a non-zero value quiche will only allow at most `v` bytes\nof incoming stream data to be buffered for each remotely-initiated\nbidirectional stream (that is, data that is not yet read by the\napplication) and will allow more data to be received as the buffer is\nconsumed by the application.\n\nWhen set to zero, either explicitly or via the default, quiche will not\ngive any flow control to the peer, preventing it from sending any stream\ndata.\n\nThe default value is `0`.",
+          "source": "lib.rs",
+          "line": 1016
+        },
+        "set_initial_max_stream_data_uni": {
+          "text": "Sets the `initial_max_stream_data_uni` transport parameter.\n\nWhen set to a non-zero value quiche will only allow at most `v` bytes\nof incoming stream data to be buffered for each unidirectional stream\n(that is, data that is not yet read by the application) and will allow\nmore data to be received as the buffer is consumed by the application.\n\nWhen set to zero, either explicitly or via the default, quiche will not\ngive any flow control to the peer, preventing it from sending any stream\ndata.\n\nThe default value is `0`.",
+          "source": "lib.rs",
+          "line": 1035
+        },
+        "set_initial_max_streams_bidi": {
+          "text": "Sets the `initial_max_streams_bidi` transport parameter.\n\nWhen set to a non-zero value quiche will only allow `v` number of\nconcurrent remotely-initiated bidirectional streams to be open at any\ngiven time and will increase the limit automatically as streams are\ncompleted.\n\nWhen set to zero, either explicitly or via the default, quiche will not\nnot allow the peer to open any bidirectional streams.\n\nA bidirectional stream is considered completed when all incoming data\nhas been read by the application (up to the `fin` offset) or the\nstream's read direction has been shutdown, and all outgoing data has\nbeen acked by the peer (up to the `fin` offset) or the stream's write\ndirection has been shutdown and the resulting `RESET_STREAM` frame has\nbeen acked by the peer.\n\nThe default value is `0`.",
+          "source": "lib.rs",
+          "line": 1052
+        },
+        "set_initial_max_streams_uni": {
+          "text": "Sets the `initial_max_streams_uni` transport parameter.\n\nWhen set to a non-zero value quiche will only allow `v` number of\nconcurrent remotely-initiated unidirectional streams to be open at any\ngiven time and will increase the limit automatically as streams are\ncompleted.\n\nWhen set to zero, either explicitly or via the default, quiche will not\nnot allow the peer to open any unidirectional streams.\n\nA unidirectional stream is considered completed when all incoming data\nhas been read by the application (up to the `fin` offset) or the\nstream's read direction has been shutdown.\n\nThe default value is `0`.",
+          "source": "lib.rs",
+          "line": 1075
+        },
+        "set_ack_delay_exponent": {
+          "text": "Sets the `ack_delay_exponent` transport parameter.\n\nValues above the RFC 9000 maximum of\n[`MAX_ACK_DELAY_EXPONENT`] (20) are clamped to that\nmaximum.\n\nThe default value is `3`.",
+          "source": "lib.rs",
+          "line": 1095
+        },
+        "set_max_ack_delay": {
+          "text": "Sets the `max_ack_delay` transport parameter.\n\nThe default value is `25`.",
+          "source": "lib.rs",
+          "line": 1107
+        },
+        "set_active_connection_id_limit": {
+          "text": "Sets the `active_connection_id_limit` transport parameter.\n\nThe default value is `2`. Lower values will be ignored.",
+          "source": "lib.rs",
+          "line": 1115
+        },
+        "set_disable_active_migration": {
+          "text": "Sets the `disable_active_migration` transport parameter.\n\nThe default value is `false`.",
+          "source": "lib.rs",
+          "line": 1125
+        },
+        "set_cc_algorithm": {
+          "text": "Sets the congestion control algorithm used.\n\nThe default value is `CongestionControlAlgorithm::CUBIC`.",
+          "source": "lib.rs",
+          "line": 1132
+        },
+        "set_custom_bbr_params": {
+          "text": "Sets custom BBR settings.\n\nThis API is experimental and will be removed in the future.\n\nCurrently this only applies if cc_algorithm is\n`CongestionControlAlgorithm::Bbr2Gcongestion` is set.\n\nThe default value is `None`.",
+          "source": "lib.rs",
+          "line": 1139
+        },
+        "set_cc_algorithm_name": {
+          "text": "Sets the congestion control algorithm used by string.\n\nThe default value is `cubic`. On error `Error::CongestionControl`\nwill be returned.\n\n## Examples:\n\n```\n# let mut config = quiche::Config::new(0xbabababa)?;\nconfig.set_cc_algorithm_name(\"reno\");\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 1153
+        },
+        "set_initial_congestion_window_packets": {
+          "text": "Sets initial congestion window size in terms of packet count.\n\nThe default value is 10.",
+          "source": "lib.rs",
+          "line": 1171
+        },
+        "set_unchecked_congestion_window": {
+          "text": "Sets the fixed congestion window in bytes for the\n`congestion_window_unchecked` algorithm.\n\nThe default is `usize::MAX`. Other congestion control algorithms ignore\nthis setting. Recovery probes can temporarily bypass this window.\n\nValues are not clamped. Zero can prevent connection establishment, and\nwindows too small for outgoing packets or PMTU probes can stall\ntransmission. At least two maximum-sized datagrams are recommended.\n\nThis API is available even when the\n`congestion_window_unchecked_available` feature is disabled, in which\ncase the setting has no effect.",
+          "source": "lib.rs",
+          "line": 1178
+        },
+        "set_enable_relaxed_loss_threshold": {
+          "text": "Configure whether to enable relaxed loss detection on spurious loss.\n\nThe default value is false.",
+          "source": "lib.rs",
+          "line": 1195
+        },
+        "set_enable_cubic_idle_restart_fix": {
+          "text": "Configure whether to enable the CUBIC idle restart fix.\n\nWhen enabled, the epoch shift on idle restart uses the later of\nthe last ACK time and last send time, avoiding an inflated delta\nwhen bytes-in-flight transiently hits zero.\n\nThe default value is `true`.",
+          "source": "lib.rs",
+          "line": 1202
+        },
+        "set_enable_send_streams_blocked": {
+          "text": "Configure whether to enable sending STREAMS_BLOCKED frames.\n\nSTREAMS_BLOCKED frames are an optional advisory signal in the QUIC\nprotocol which SHOULD be sent when the sender wishes to open a stream\nbut is unable to do so due to the maximum stream limit set by its peer.\n\nThe default value is false.",
+          "source": "lib.rs",
+          "line": 1213
+        },
+        "enable_hystart": {
+          "text": "Configures whether to enable HyStart++.\n\nThe default value is `true`.",
+          "source": "lib.rs",
+          "line": 1224
+        },
+        "enable_pacing": {
+          "text": "Configures whether to enable pacing.\n\nThe default value is `true`.",
+          "source": "lib.rs",
+          "line": 1231
+        },
+        "set_max_pacing_rate": {
+          "text": "Sets the max value for pacing rate.\n\nBy default pacing rate is not limited.",
+          "source": "lib.rs",
+          "line": 1238
+        },
+        "enable_dgram": {
+          "text": "Configures whether to enable receiving DATAGRAM frames.\n\nWhen enabled, the `max_datagram_frame_size` transport parameter is set\nto 65536 as recommended by draft-ietf-quic-datagram-01.\n\nThe default is `false`.",
+          "source": "lib.rs",
+          "line": 1245
+        },
+        "set_path_challenge_recv_max_queue_len": {
+          "text": "Configures the max number of queued received PATH_CHALLENGE frames.\n\nWhen an endpoint receives a PATH_CHALLENGE frame and the queue is full,\nthe frame is discarded.\n\nThe default is 3.",
+          "source": "lib.rs",
+          "line": 1263
+        },
+        "set_max_connection_window": {
+          "text": "Sets the maximum size of the connection window.\n\nThe default value is MAX_CONNECTION_WINDOW (24MBytes).",
+          "source": "lib.rs",
+          "line": 1273
+        },
+        "set_max_stream_window": {
+          "text": "Sets the maximum size of the stream window.\n\nThe default value is MAX_STREAM_WINDOW (16MBytes).",
+          "source": "lib.rs",
+          "line": 1280
+        },
+        "set_stateless_reset_token": {
+          "text": "Sets the initial stateless reset token.\n\nThis value is only advertised by servers. Setting a stateless retry\ntoken as a client has no effect on the connection.\n\nThe default value is `None`.",
+          "source": "lib.rs",
+          "line": 1287
+        },
+        "set_disable_dcid_reuse": {
+          "text": "Sets whether the QUIC connection should avoid reusing DCIDs over\ndifferent paths.\n\nWhen set to `true`, it ensures that a destination Connection ID is never\nreused on different paths. Such behaviour may lead to connection stall\nif the peer performs a non-voluntary migration (e.g., NAT rebinding) and\ndoes not provide additional destination Connection IDs to handle such\nevent.\n\nThe default value is `false`.",
+          "source": "lib.rs",
+          "line": 1297
+        },
+        "enable_track_unknown_transport_parameters": {
+          "text": "Enables tracking unknown transport parameters.\n\nSpecify the maximum number of bytes used to track unknown transport\nparameters. The size includes the identifier and its value. If storing a\ntransport parameter would cause the limit to be exceeded, it is quietly\ndropped.\n\nThe default is that the feature is disabled.",
+          "source": "lib.rs",
+          "line": 1311
+        },
+        "set_use_initial_max_data_as_flow_control_win": {
+          "text": "Sets whether the initial max data value should be used as the initial\nflow control window.\n\nThis is now always enabled and this method is a no-op. It will be\nremoved in a future release.",
+          "source": "lib.rs",
+          "line": 1323
+        }
+      }
+    },
+    "lib.TxBufferTrackingState": {
+      "text": "Tracks the health of the tx_buffered value.",
+      "source": "lib.rs",
+      "line": 1332,
+      "variants": {
+        "Ok": "The send buffer is in a good state",
+        "Inconsistent": "The send buffer is in an inconsistent state, which could lead to\nconnection stalls or excess buffering due to bugs we haven't\ntracked down yet."
+      }
+    },
+    "lib.StreamsBlockedState": {
+      "text": "Tracks if the connection hit the peer stream limit and which\nSTREAMS_BLOCKED frames have been sent.",
+      "source": "lib.rs",
+      "line": 1344,
+      "fields": {
+        "blocked_at": "The peer's max_streams limit at which we last became blocked on\nopening new local streams, if any.",
+        "blocked_sent": "The stream limit sent on the most recently sent STREAMS_BLOCKED\nframe. If != to blocked_at, the connection has pending STREAMS_BLOCKED\nframes to send."
+      }
+    },
+    "lib.Connection": {
+      "text": "A QUIC connection.",
+      "source": "lib.rs",
+      "line": 1380,
+      "fields": {
+        "version": "QUIC wire version used for the connection.",
+        "ids": "Connection Identifiers.",
+        "trace_id": "Unique opaque ID for the connection that can be used for logging.",
+        "pkt_num_spaces": "Packet number spaces.",
+        "crypto_ctx": "The crypto context.",
+        "next_pkt_num": "Next packet number.",
+        "pkt_num_manager": "Track the packet skip context",
+        "peer_transport_params": "Peer's transport parameters.",
+        "peer_transport_params_track_unknown": "If tracking unknown transport parameters from a peer, how much space to\nuse in bytes.",
+        "local_transport_params": "Local transport parameters.",
+        "handshake": "TLS handshake state.",
+        "session": "Serialized TLS session buffer.\n\nThis field is populated when a new session ticket is processed on the\nclient. On the server this is empty.",
+        "recovery_config": "The configuration for recovery.",
+        "paths": "The path manager.",
+        "path_challenge_recv_max_queue_len": "PATH_CHALLENGE receive queue max length.",
+        "path_challenge_rx_count": "Total number of received PATH_CHALLENGE frames.",
+        "application_protos": "List of supported application protocols.",
+        "recv_count": "Total number of received packets.",
+        "sent_count": "Total number of sent packets.",
+        "lost_count": "Total number of lost packets.",
+        "spurious_lost_count": "Total number of lost packets that were later acked.",
+        "retrans_count": "Total number of packets sent with data retransmitted.",
+        "dgram_sent_count": "Total number of sent DATAGRAM frames.",
+        "dgram_recv_count": "Total number of received DATAGRAM frames.",
+        "rx_data": "Total number of bytes received from the peer.",
+        "flow_control": "Receiver flow controller.",
+        "should_send_max_data": "Whether we send MAX_DATA frame.",
+        "should_send_max_streams_bidi": "True if there is a pending MAX_STREAMS_BIDI frame to send.",
+        "should_send_max_streams_uni": "True if there is a pending MAX_STREAMS_UNI frame to send.",
+        "tx_cap": "Number of stream data bytes that can be buffered.",
+        "tx_cap_factor": "The send capacity factor.",
+        "tx_data": "Total number of bytes sent to the peer.",
+        "max_tx_data": "Peer's flow control limit for the connection.",
+        "last_tx_data": "Last tx_data before running a full send() loop.",
+        "stream_retrans_bytes": "Total number of bytes retransmitted over the connection.\nThis counts only STREAM and CRYPTO data.",
+        "sent_bytes": "Total number of bytes sent over the connection.",
+        "recv_bytes": "Total number of bytes received over the connection.",
+        "acked_bytes": "Total number of bytes sent acked over the connection.",
+        "lost_bytes": "Total number of bytes sent lost over the connection.",
+        "streams": "Streams map, indexed by stream ID.",
+        "odcid": "Peer's original destination connection ID. Used by the client to\nvalidate the server's transport parameter.",
+        "rscid": "Peer's retry source connection ID. Used by the client during stateless\nretry to validate the server's transport parameter.",
+        "token": "Received address verification token.",
+        "local_error": "Error code and reason to be sent to the peer in a CONNECTION_CLOSE\nframe.",
+        "peer_error": "Error code and reason received from the peer in a CONNECTION_CLOSE\nframe.",
+        "blocked_limit": "The connection-level limit at which send blocking occurred.",
+        "idle_timer": "Idle timeout expiration time.",
+        "draining_timer": "Draining timeout expiration time.",
+        "undecryptable_pkts": "List of raw packets that were received before they could be decrypted.",
+        "alpn": "The negotiated ALPN protocol.",
+        "is_server": "Whether this is a server-side connection.",
+        "derived_initial_secrets": "Whether the initial secrets have been derived.",
+        "did_version_negotiation": "Whether a version negotiation packet has already been received. Only\nrelevant for client connections.",
+        "did_retry": "Whether stateless retry has been performed.",
+        "got_peer_conn_id": "Whether the peer already updated its connection ID.",
+        "peer_verified_initial_address": "Whether the peer verified our initial address.",
+        "parsed_peer_transport_params": "Whether the peer's transport parameters were parsed.",
+        "handshake_completed": "Whether the connection handshake has been completed.",
+        "handshake_done_sent": "Whether the HANDSHAKE_DONE frame has been sent.",
+        "handshake_done_acked": "Whether the HANDSHAKE_DONE frame has been acked.",
+        "handshake_confirmed": "Whether the connection handshake has been confirmed.",
+        "key_phase": "Key phase bit used for outgoing protected packets.",
+        "ack_eliciting_sent": "Whether an ack-eliciting packet has been sent since last receiving a\npacket.",
+        "closed": "Whether the connection is closed.",
+        "timed_out": "Whether the connection was timed out.",
+        "grease": "Whether to send GREASE.",
+        "enable_send_streams_blocked": "Whether to send STREAMS_BLOCKED frames when bidi or uni stream quota\nexhausted.",
+        "keylog": "TLS keylog writer.",
+        "dgram_recv_queue": "DATAGRAM queues.",
+        "emit_dgram": "Whether to emit DATAGRAM frames in the next packet.",
+        "disable_dcid_reuse": "Whether the connection should prevent from reusing destination\nConnection IDs when the peer migrates.",
+        "reset_stream_local_count": "The number of streams reset by local.",
+        "stopped_stream_local_count": "The number of streams stopped by local.",
+        "reset_stream_remote_count": "The number of streams reset by remote.",
+        "stopped_stream_remote_count": "The number of streams stopped by remote.",
+        "data_blocked_sent_count": "The number of DATA_BLOCKED frames sent due to hitting the connection\nflow control limit.",
+        "stream_data_blocked_sent_count": "The number of STREAM_DATA_BLOCKED frames sent due to a stream hitting\nthe stream flow control limit.",
+        "data_blocked_recv_count": "The number of DATA_BLOCKED frames received from the remote endpoint.",
+        "stream_data_blocked_recv_count": "The number of STREAM_DATA_BLOCKED frames received from the remote\nendpoint.",
+        "streams_blocked_bidi_recv_count": "The number of STREAMS_BLOCKED frames received from the remote endpoint\nindicating the peer is blocked on opening new bidirectional streams.",
+        "streams_blocked_uni_recv_count": "The number of STREAMS_BLOCKED frames received from the remote endpoint\nindicating the peer is blocked on opening new unidirectional streams.",
+        "amplification_limited_count": "The number of times send() was blocked because the anti-amplification\nbudget (bytes received \u00d7 max_amplification_factor) was exhausted.",
+        "streams_blocked_bidi_state": "Tracks if the connection hit the peer's bidi or uni stream limit, and if\nSTREAMS_BLOCKED frames are pending transmission.",
+        "max_amplification_factor": "The anti-amplification limit factor.",
+        "max_outstanding_sent_packets": "The number of tracked sent packets after which the connection is\nclosed."
+      },
+      "methods": {
+        "set_keylog": {
+          "text": "Sets keylog output to the designated [`Writer`].\n\nThis needs to be called as soon as the connection is created, to avoid\nmissing some early logs.\n\n[`Writer`]: https://doc.rust-lang.org/std/io/trait.Write.html",
+          "source": "lib.rs",
+          "line": 2351
+        },
+        "set_qlog": {
+          "text": "Sets qlog output to the designated [`Writer`].\n\nOnly events included in `QlogLevel::Base` are written. The serialization\nformat is JSON-SEQ.\n\nThis needs to be called as soon as the connection is created, to avoid\nmissing some early logs.\n\n[`Writer`]: https://doc.rust-lang.org/std/io/trait.Write.html",
+          "source": "lib.rs",
+          "line": 2362
+        },
+        "set_qlog_with_level": {
+          "text": "Sets qlog output to the designated [`Writer`].\n\nOnly qlog events included in the specified `QlogLevel` are written. The\nserialization format is JSON-SEQ.\n\nThis needs to be called as soon as the connection is created, to avoid\nmissing some early logs.\n\n[`Writer`]: https://doc.rust-lang.org/std/io/trait.Write.html",
+          "source": "lib.rs",
+          "line": 2380
+        },
+        "qlog_streamer": {
+          "text": "Returns a mutable reference to the QlogStreamer, if it exists.",
+          "source": "lib.rs",
+          "line": 2459
+        },
+        "set_session": {
+          "text": "Configures the given session for resumption.\n\nOn the client, this can be used to offer the given serialized session,\nas returned by [`session()`], for resumption.\n\nThis must only be called immediately after creating a connection, that\nis, before any packet is sent or received.\n\n[`session()`]: struct.Connection.html#method.session",
+          "source": "lib.rs",
+          "line": 2466
+        },
+        "set_max_idle_timeout": {
+          "text": "Sets the `max_idle_timeout` transport parameter, in milliseconds.\n\nThis must only be called immediately after creating a connection, that\nis, before any packet is sent or received.\n\nThe default value is infinite, that is, no timeout is used unless\nalready configured when creating the connection.",
+          "source": "lib.rs",
+          "line": 2498
+        },
+        "set_cc_algorithm_in_handshake": {
+          "text": "Sets the congestion control algorithm used.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_cc_algorithm()`].\n\n[`Config::set_cc_algorithm()`]: struct.Config.html#method.set_cc_algorithm",
+          "source": "lib.rs",
+          "line": 2512
+        },
+        "set_custom_bbr_settings_in_handshake": {
+          "text": "Sets custom BBR settings.\n\nThis API is experimental and will be removed in the future.\n\nCurrently this only applies if cc_algorithm is\n`CongestionControlAlgorithm::Bbr2Gcongestion` is set.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_custom_bbr_settings()`].\n\n[`Config::set_custom_bbr_settings()`]: struct.Config.html#method.set_custom_bbr_settings",
+          "source": "lib.rs",
+          "line": 2533
+        },
+        "set_cc_algorithm_name_in_handshake": {
+          "text": "Sets the congestion control algorithm used by string.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_cc_algorithm_name()`].\n\n[`Config::set_cc_algorithm_name()`]: struct.Config.html#method.set_cc_algorithm_name",
+          "source": "lib.rs",
+          "line": 2560
+        },
+        "set_initial_congestion_window_packets_in_handshake": {
+          "text": "Sets initial congestion window size in terms of packet count.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_initial_congestion_window_packets()`].\n\n[`Config::set_initial_congestion_window_packets()`]: struct.Config.html#method.set_initial_congestion_window_packets",
+          "source": "lib.rs",
+          "line": 2578
+        },
+        "set_enable_relaxed_loss_threshold_in_handshake": {
+          "text": "Configure whether to enable relaxed loss detection on spurious loss.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_enable_relaxed_loss_threshold()`].\n\n[`Config::set_enable_relaxed_loss_threshold()`]: struct.Config.html#method.set_enable_relaxed_loss_threshold",
+          "source": "lib.rs",
+          "line": 2599
+        },
+        "set_enable_cubic_idle_restart_fix_in_handshake": {
+          "text": "Configure whether to enable the CUBIC idle restart fix.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_enable_cubic_idle_restart_fix()`].\n\n[`Config::set_enable_cubic_idle_restart_fix()`]: struct.Config.html#method.set_enable_cubic_idle_restart_fix",
+          "source": "lib.rs",
+          "line": 2620
+        },
+        "set_hystart_in_handshake": {
+          "text": "Configures whether to enable HyStart++.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::enable_hystart()`].\n\n[`Config::enable_hystart()`]: struct.Config.html#method.enable_hystart",
+          "source": "lib.rs",
+          "line": 2641
+        },
+        "set_pacing_in_handshake": {
+          "text": "Configures whether to enable pacing.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::enable_pacing()`].\n\n[`Config::enable_pacing()`]: struct.Config.html#method.enable_pacing",
+          "source": "lib.rs",
+          "line": 2662
+        },
+        "set_max_pacing_rate_in_handshake": {
+          "text": "Sets the max value for pacing rate.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_max_pacing_rate()`].\n\n[`Config::set_max_pacing_rate()`]: struct.Config.html#method.set_max_pacing_rate",
+          "source": "lib.rs",
+          "line": 2683
+        },
+        "set_max_send_udp_payload_size_in_handshake": {
+          "text": "Sets the maximum outgoing UDP payload size.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_max_send_udp_payload_size()`].\n\n[`Config::set_max_send_udp_payload_size()`]: struct.Config.html#method.set_max_send_udp_payload_size",
+          "source": "lib.rs",
+          "line": 2704
+        },
+        "set_send_capacity_factor_in_handshake": {
+          "text": "Sets the send capacity factor.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_send_capacity_factor()`].\n\n[`Config::set_max_send_udp_payload_size()`]: struct.Config.html#method.set_send_capacity_factor",
+          "source": "lib.rs",
+          "line": 2725
+        },
+        "set_discover_pmtu_in_handshake": {
+          "text": "Configures whether to do path MTU discovery.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::discover_pmtu()`].\n\n[`Config::discover_pmtu()`]: struct.Config.html#method.discover_pmtu",
+          "source": "lib.rs",
+          "line": 2746
+        },
+        "set_max_idle_timeout_in_handshake": {
+          "text": "Sets the `max_idle_timeout` transport parameter, in milliseconds.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_max_idle_timeout()`].\n\n[`Config::set_max_idle_timeout()`]: struct.Config.html#method.set_max_idle_timeout",
+          "source": "lib.rs",
+          "line": 2767
+        },
+        "set_max_outstanding_sent_packets_in_handshake": {
+          "text": "Sets the number of sent packets that can be tracked for loss detection\nbefore the connection is closed.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_max_outstanding_sent_packets()`].",
+          "source": "lib.rs",
+          "line": 2792
+        },
+        "set_initial_max_streams_bidi_in_handshake": {
+          "text": "Sets the `initial_max_streams_bidi` transport parameter.\n\nThis function can only be called inside one of BoringSSL's handshake\ncallbacks, before any packet has been sent. Calling this function any\nother time will have no effect.\n\nSee [`Config::set_initial_max_streams_bidi()`].\n\n[`Config::set_initial_max_streams_bidi()`]: struct.Config.html#method.set_initial_max_streams_bidi",
+          "source": "lib.rs",
+          "line": 2812
+        },
+        "set_use_initial_max_data_as_flow_control_win_in_handshake": {
+          "text": "Sets the `use_initial_max_data_as_flow_control_win` flag during SSL\nhandshake.\n\nThis is now always enabled and this method is a no-op. It will be\nremoved in a future release.",
+          "source": "lib.rs",
+          "line": 2860
+        },
+        "recv": {
+          "text": "Processes QUIC packets received from the peer.\n\nOn success the number of bytes processed from the input buffer is\nreturned. On error the connection will be closed by calling [`close()`]\nwith the appropriate error code.\n\nCoalesced packets will be processed as necessary.\n\nNote that the contents of the input buffer `buf` might be modified by\nthis function due to, for example, in-place decryption.\n\n[`close()`]: struct.Connection.html#method.close\n\n## Examples:\n\n```no_run\n# let mut buf = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\nloop {\n    let (read, from) = socket.recv_from(&mut buf).unwrap();\n\n    let recv_info = quiche::RecvInfo {\n        from,\n        to: local,\n    };\n\n    let read = match conn.recv(&mut buf[..read], recv_info) {\n        Ok(v) => v,\n\n        Err(e) => {\n            // An error occurred, handle it.\n            break;\n        },\n    };\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 2874
+        },
+        "is_stateless_reset": {
+          "text": "Returns true if a QUIC packet is a stateless reset.",
+          "source": "lib.rs",
+          "line": 3017
+        },
+        "recv_single": {
+          "text": "Processes a single QUIC packet received from the peer.\n\nOn success the number of bytes processed from the input buffer is\nreturned. When the [`Done`] error is returned, processing of the\nremainder of the incoming UDP datagram should be interrupted.\n\nNote that a server might observe a new 4-tuple, preventing to\nknow in advance to which path the incoming packet belongs to (`recv_pid`\nis `None`). As a client, packets from unknown 4-tuple are dropped\nbeforehand (see `recv()`).\n\nOn error, an error other than [`Done`] is returned.\n\n[`Done`]: enum.Error.html#variant.Done",
+          "source": "lib.rs",
+          "line": 3042
+        },
+        "send": {
+          "text": "Writes a single QUIC packet to be sent to the peer.\n\nOn success the number of bytes written to the output buffer is\nreturned, or [`Done`] if there was nothing to write.\n\nThe application should call `send()` multiple times until [`Done`] is\nreturned, indicating that there are no more packets to send. It is\nrecommended that `send()` be called in the following cases:\n\n * When the application receives QUIC packets from the peer (that is,\n   any time [`recv()`] is also called).\n\n * When the connection timer expires (that is, any time [`on_timeout()`]\n   is also called).\n\n * When the application sends data to the peer (for example, any time\n   [`stream_send()`] or [`stream_shutdown()`] are called).\n\n * When the application receives data from the peer (for example any\n   time [`stream_recv()`] is called).\n\nOnce [`is_draining()`] returns `true`, it is no longer necessary to call\n`send()` and all calls will return [`Done`].\n\n[`Done`]: enum.Error.html#variant.Done\n[`recv()`]: struct.Connection.html#method.recv\n[`on_timeout()`]: struct.Connection.html#method.on_timeout\n[`stream_send()`]: struct.Connection.html#method.stream_send\n[`stream_shutdown()`]: struct.Connection.html#method.stream_shutdown\n[`stream_recv()`]: struct.Connection.html#method.stream_recv\n[`is_draining()`]: struct.Connection.html#method.is_draining\n\n## Examples:\n\n```no_run\n# let mut out = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\nloop {\n    let (write, send_info) = match conn.send(&mut out) {\n        Ok(v) => v,\n\n        Err(quiche::Error::Done) => {\n            // Done writing.\n            break;\n        },\n\n        Err(e) => {\n            // An error occurred, handle it.\n            break;\n        },\n    };\n\n    socket.send_to(&out[..write], &send_info.to).unwrap();\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 3855
+        },
+        "send_on_path": {
+          "text": "Writes a single QUIC packet to be sent to the peer from the specified\nlocal address `from` to the destination address `to`.\n\nThe behavior of this method differs depending on the value of the `from`\nand `to` parameters:\n\n * If both are `Some`, then the method only consider the 4-tuple\n   (`from`, `to`). Application can monitor the 4-tuple availability,\n   either by monitoring [`path_event_next()`] events or by relying on\n   the [`paths_iter()`] method. If the provided 4-tuple does not exist\n   on the connection (anymore), it returns an [`InvalidState`].\n\n * If `from` is `Some` and `to` is `None`, then the method only\n   considers sending packets on paths having `from` as local address.\n\n * If `to` is `Some` and `from` is `None`, then the method only\n   considers sending packets on paths having `to` as peer address.\n\n * If both are `None`, all available paths are considered.\n\nOn success the number of bytes written to the output buffer is\nreturned, or [`Done`] if there was nothing to write.\n\nThe application should call `send_on_path()` multiple times until\n[`Done`] is returned, indicating that there are no more packets to\nsend. It is recommended that `send_on_path()` be called in the\nfollowing cases:\n\n * When the application receives QUIC packets from the peer (that is,\n   any time [`recv()`] is also called).\n\n * When the connection timer expires (that is, any time [`on_timeout()`]\n   is also called).\n\n * When the application sends data to the peer (for examples, any time\n   [`stream_send()`] or [`stream_shutdown()`] are called).\n\n * When the application receives data from the peer (for example any\n   time [`stream_recv()`] is called).\n\nOnce [`is_draining()`] returns `true`, it is no longer necessary to call\n`send_on_path()` and all calls will return [`Done`].\n\n[`Done`]: enum.Error.html#variant.Done\n[`InvalidState`]: enum.Error.html#InvalidState\n[`recv()`]: struct.Connection.html#method.recv\n[`on_timeout()`]: struct.Connection.html#method.on_timeout\n[`stream_send()`]: struct.Connection.html#method.stream_send\n[`stream_shutdown()`]: struct.Connection.html#method.stream_shutdown\n[`stream_recv()`]: struct.Connection.html#method.stream_recv\n[`path_event_next()`]: struct.Connection.html#method.path_event_next\n[`paths_iter()`]: struct.Connection.html#method.paths_iter\n[`is_draining()`]: struct.Connection.html#method.is_draining\n\n## Examples:\n\n```no_run\n# let mut out = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\nloop {\n    let (write, send_info) = match conn.send_on_path(&mut out, Some(local), Some(peer)) {\n        Ok(v) => v,\n\n        Err(quiche::Error::Done) => {\n            // Done writing.\n            break;\n        },\n\n        Err(e) => {\n            // An error occurred, handle it.\n            break;\n        },\n    };\n\n    socket.send_to(&out[..write], &send_info.to).unwrap();\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 3920
+        },
+        "get_next_release_time": {
+          "text": "Returns the desired send time for the next packet.",
+          "source": "lib.rs",
+          "line": 5727
+        },
+        "gcongestion_enabled": {
+          "text": "Returns whether gcongestion is enabled.",
+          "source": "lib.rs",
+          "line": 5739
+        },
+        "max_release_into_future": {
+          "text": "Returns the maximum pacing into the future.\n\nEquals 1/8 of the smoothed RTT, but at least 1ms and not greater than\n5ms.",
+          "source": "lib.rs",
+          "line": 5745
+        },
+        "pacing_enabled": {
+          "text": "Returns whether pacing is enabled.",
+          "source": "lib.rs",
+          "line": 5758
+        },
+        "send_quantum": {
+          "text": "Returns the size of the send quantum, in bytes.\n\nThis represents the maximum size of a packet burst as determined by the\ncongestion control algorithm in use.\n\nApplications can, for example, use it in conjunction with segmentation\noffloading mechanisms as the maximum limit for outgoing aggregates of\nmultiple packets.",
+          "source": "lib.rs",
+          "line": 5764
+        },
+        "send_quantum_on_path": {
+          "text": "Returns the size of the send quantum over the given 4-tuple, in bytes.\n\nThis represents the maximum size of a packet burst as determined by the\ncongestion control algorithm in use.\n\nApplications can, for example, use it in conjunction with segmentation\noffloading mechanisms as the maximum limit for outgoing aggregates of\nmultiple packets.\n\nIf the (`local_addr`, peer_addr`) 4-tuple relates to a non-existing\npath, this method returns 0.",
+          "source": "lib.rs",
+          "line": 5780
+        },
+        "stream_recv": {
+          "text": "Reads contiguous data from a stream into the provided slice.\n\nThe slice must be sized by the caller and will be populated up to its\ncapacity.\n\nOn success the amount of bytes read and a flag indicating the fin state\nis returned as a tuple, or [`Done`] if there is no data to read.\n\nReading data from a stream may trigger queueing of control messages\n(e.g. MAX_STREAM_DATA). [`send()`] should be called afterwards.\n\n[`Done`]: enum.Error.html#variant.Done\n[`send()`]: struct.Connection.html#method.send\n\n## Examples:\n\n```no_run\n# let mut buf = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\n# let stream_id = 0;\nwhile let Ok((read, fin)) = conn.stream_recv(stream_id, &mut buf) {\n    println!(\"Got {} bytes on stream {}\", read, stream_id);\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 5801
+        },
+        "stream_recv_buf": {
+          "text": "Reads contiguous data from a stream into the provided [`bytes::BufMut`].\n\n**NOTE**:\nThe BufMut will be populated with all available data up to its capacity.\nSince some BufMut implementations, e.g., [`Vec<u8>`], dynamically\nallocate additional memory, the caller may use [`BufMut::limit()`]\nto limit the maximum amount of data that can be written.\n\nOn success the amount of bytes read and a flag indicating the fin state\nis returned as a tuple, or [`Done`] if there is no data to read.\n[`BufMut::advance_mut()`] will have been called with the same number of\ntotal bytes.\n\nReading data from a stream may trigger queueing of control messages\n(e.g. MAX_STREAM_DATA). [`send()`] should be called afterwards.\n\n[`BufMut::limit()`]: bytes::BufMut::limit\n[`BufMut::advance_mut()`]: bytes::BufMut::advance_mut\n[`Done`]: enum.Error.html#variant.Done\n[`send()`]: struct.Connection.html#method.send\n\n## Examples:\n\n```no_run\n# use bytes::BufMut as _;\n# let mut buf = Vec::new().limit(1024);  // Read at most 1024 bytes\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\n# let stream_id = 0;\n# let mut total_read = 0;\nwhile let Ok((read, fin)) = conn.stream_recv_buf(stream_id, &mut buf) {\n    println!(\"Got {} bytes on stream {}\", read, stream_id);\n    total_read += read;\n    assert_eq!(buf.get_ref().len(), total_read);\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 5838
+        },
+        "stream_discard": {
+          "text": "Discard contiguous data from a stream without copying.\n\nOn success the amount of bytes discarded and a flag indicating the fin\nstate is returned as a tuple, or [`Done`] if there is no data to\ndiscard.\n\nDiscarding data from a stream may trigger queueing of control messages\n(e.g. MAX_STREAM_DATA). [`send()`] should be called afterwards.\n\n[`Done`]: enum.Error.html#variant.Done\n[`send()`]: struct.Connection.html#method.send\n\n## Examples:\n\n```no_run\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\n# let stream_id = 0;\nwhile let Ok((read, fin)) = conn.stream_discard(stream_id, 1) {\n    println!(\"Discarded {} byte(s) on stream {}\", read, stream_id);\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 5885
+        },
+        "stream_send": {
+          "text": "Writes data to a stream.\n\nOn success the number of bytes written is returned, or [`Done`] if no\ndata was written (e.g. because the stream has no capacity).\n\nApplications can provide a 0-length buffer with the fin flag set to\ntrue. This will lead to a 0-length FIN STREAM frame being sent at the\nlatest offset. The `Ok(0)` value is only returned when the application\nprovided a 0-length buffer.\n\nIn addition, if the peer has signalled that it doesn't want to receive\nany more data from this stream by sending the `STOP_SENDING` frame, the\n[`StreamStopped`] error will be returned instead of any data.\n\nNote that in order to avoid buffering an infinite amount of data in the\nstream's send buffer, streams are only allowed to buffer outgoing data\nup to the amount that the peer allows it to send (that is, up to the\nstream's outgoing flow control capacity).\n\nThis means that the number of written bytes returned can be lower than\nthe length of the input buffer when the stream doesn't have enough\ncapacity for the operation to complete. The application should retry the\noperation once the stream is reported as writable again.\n\nApplications should call this method only after the handshake is\ncompleted (whenever [`is_established()`] returns `true`) or during\nearly data if enabled (whenever [`is_in_early_data()`] returns `true`).\n\n[`Done`]: enum.Error.html#variant.Done\n[`StreamStopped`]: enum.Error.html#variant.StreamStopped\n[`is_established()`]: struct.Connection.html#method.is_established\n[`is_in_early_data()`]: struct.Connection.html#method.is_in_early_data\n\n## Examples:\n\n```no_run\n# let mut buf = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = \"127.0.0.1:4321\".parse().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\n# let stream_id = 0;\nconn.stream_send(stream_id, b\"hello\", true)?;\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 6033
+        },
+        "stream_send_zc": {
+          "text": "Writes data to a stream with zero copying, instead, it appends the\nprovided buffer directly to the send queue if the capacity allows\nit.\n\nWhen a partial write happens (including when [`Error::Done`] is\nreturned) the remaining (unwritten) buffer will also be returned.\nThe application should retry the operation once the stream is\nreported as writable again.",
+          "source": "lib.rs",
+          "line": 6096
+        },
+        "stream_priority": {
+          "text": "Sets the priority for a stream.\n\nA stream's priority determines the order in which stream data is sent\non the wire (streams with lower priority are sent first). Streams are\ncreated with a default priority of `127`.\n\nThe target stream is created if it did not exist before calling this\nmethod.",
+          "source": "lib.rs",
+          "line": 6309
+        },
+        "stream_shutdown": {
+          "text": "Shuts down reading or writing from/to the specified stream.\n\nWhen the `direction` argument is set to [`Shutdown::Read`], outstanding\ndata in the stream's receive buffer is dropped, and no additional data\nis added to it. Data received after calling this method is still\nvalidated and acked but not stored, and [`stream_recv()`] will not\nreturn it to the application. In addition, a `STOP_SENDING` frame will\nbe sent to the peer to signal it to stop sending data.\n\nWhen the `direction` argument is set to [`Shutdown::Write`], outstanding\ndata in the stream's send buffer is dropped, and no additional data is\nadded to it. Data passed to [`stream_send()`] after calling this method\nwill be ignored. In addition, a `RESET_STREAM` frame will be sent to the\npeer to signal the reset, unless all outgoing data has already been\nacked by the peer (up to the `fin` offset).\n\nLocally-initiated unidirectional streams can only be closed in the\n[`Shutdown::Write`] direction. Remotely-initiated unidirectional streams\ncan only be closed in the [`Shutdown::Read`] direction. Using an\nincorrect direction will return [`InvalidStreamState`].\n\n[`Shutdown::Read`]: enum.Shutdown.html#variant.Read\n[`Shutdown::Write`]: enum.Shutdown.html#variant.Write\n[`stream_recv()`]: struct.Connection.html#method.stream_recv\n[`stream_send()`]: struct.Connection.html#method.stream_send\n[`InvalidStreamState`]: enum.Error.html#variant.InvalidStreamState",
+          "source": "lib.rs",
+          "line": 6353
+        },
+        "stream_capacity": {
+          "text": "Returns the stream's send capacity in bytes.\n\nThe returned capacity takes into account the stream's flow control limit\nas well as connection level flow and congestion control.\n\nIf the specified stream doesn't exist (including when it has already\nbeen completed and closed), the [`InvalidStreamState`] error will be\nreturned.\n\nIn addition, if the peer has signalled that it doesn't want to receive\nany more data from this stream by sending the `STOP_SENDING` frame, the\n[`StreamStopped`] error will be returned.\n\n[`InvalidStreamState`]: enum.Error.html#variant.InvalidStreamState\n[`StreamStopped`]: enum.Error.html#variant.StreamStopped",
+          "source": "lib.rs",
+          "line": 6485
+        },
+        "stream_readable_next": {
+          "text": "Returns the next stream that has data to read.\n\nNote that once returned by this method, a stream ID will not be returned\nagain until it is \"re-armed\".\n\nThe application will need to read all of the pending data on the stream,\nand new data has to be received before the stream is reported again.\n\nThis is unlike the [`readable()`] method, that returns the same list of\nreadable streams when called multiple times in succession.\n\n[`readable()`]: struct.Connection.html#method.readable",
+          "source": "lib.rs",
+          "line": 6521
+        },
+        "stream_readable": {
+          "text": "Returns true if the stream has data that can be read.",
+          "source": "lib.rs",
+          "line": 6541
+        },
+        "stream_readable_len": {
+          "text": "Returns the number of contiguous bytes buffered for a stream, up to\n`max_len`.\n\nThis is the length of the contiguous, in-order data buffered at the\nstream's current read offset, i.e. the bytes a call to [`stream_recv`]\nwould return right now. Data received out of order that sits behind a\ngap is not counted, so this never reports bytes that are not yet\nreadable.\n\nThis is a companion to [`stream_readable`], which only reports *whether*\ndata is available; this reports *how much*. It is intended for sizing a\nreceive buffer. The cost is proportional to the number of contiguous\nbuffered chunks at the front of the stream, up to `max_len`, and no data\nis copied.\n\nReturns 0 if the stream does not exist.\n\n[`stream_recv`]: struct.Connection.html#method.stream_recv\n[`stream_readable`]: struct.Connection.html#method.stream_readable",
+          "source": "lib.rs",
+          "line": 6552
+        },
+        "stream_writable_next": {
+          "text": "Returns the next stream that can be written to.\n\nNote that once returned by this method, a stream ID will not be returned\nagain until it is \"re-armed\".\n\nThis is unlike the [`writable()`] method, that returns the same list of\nwritable streams when called multiple times in succession. It is not\nadvised to use both `stream_writable_next()` and [`writable()`] on the\nsame connection, as it may lead to unexpected results.\n\nThe [`stream_writable()`] method can also be used to fine-tune when a\nstream is reported as writable again.\n\nA stopped stream is returned even without send capacity. Querying its\ncapacity or writing to it returns [`StreamStopped`].\n\n[`stream_writable()`]: struct.Connection.html#method.stream_writable\n[`writable()`]: struct.Connection.html#method.writable\n[`StreamStopped`]: enum.Error.html#variant.StreamStopped",
+          "source": "lib.rs",
+          "line": 6579
+        },
+        "stream_writable": {
+          "text": "Returns true if the stream has enough send capacity.\n\nWhen `len` more bytes can be buffered into the given stream's send\nbuffer, `true` will be returned, `false` otherwise.\n\nIn the latter case, if the additional data can't be buffered due to\nflow control limits, the peer will also be notified, and a \"low send\nwatermark\" will be set for the stream, such that it is not going to be\nreported as writable again by [`stream_writable_next()`] until its send\ncapacity reaches `len`.\n\nIf the specified stream doesn't exist (including when it has already\nbeen completed and closed), the [`InvalidStreamState`] error will be\nreturned.\n\nIn addition, if the peer has signalled that it doesn't want to receive\nany more data from this stream by sending the `STOP_SENDING` frame, the\n[`StreamStopped`] error will be returned.\n\n[`stream_writable_next()`]: struct.Connection.html#method.stream_writable_next\n[`InvalidStreamState`]: enum.Error.html#variant.InvalidStreamState\n[`StreamStopped`]: enum.Error.html#variant.StreamStopped",
+          "source": "lib.rs",
+          "line": 6632
+        },
+        "stream_finished": {
+          "text": "Returns true if all the data has been read from the specified stream.\n\nThis instructs the application that all the data received from the\npeer on the stream has been read, and there won't be anymore in the\nfuture.\n\nBasically this returns true when the peer either set the `fin` flag\nfor the stream, or sent `RESET_STREAM`.",
+          "source": "lib.rs",
+          "line": 6697
+        },
+        "stream_closed": {
+          "text": "Returns true if the specified stream is closed.\n\nFor bidirectional streams this happens when both the receive and send\nsides have signaled `fin`. For unidirectional streams only the\nrelevant direction is checked, depending on whether the stream was\ncreated locally or not.\n\nThis also returns true if the stream has already been collected, but\nreturns false if the stream was never opened.",
+          "source": "lib.rs",
+          "line": 6716
+        },
+        "peer_streams_left_bidi": {
+          "text": "Returns the number of bidirectional streams that can be created\nbefore the peer's stream count limit is reached.\n\nThis can be useful to know if it's possible to create a bidirectional\nstream without trying it first.",
+          "source": "lib.rs",
+          "line": 6746
+        },
+        "peer_streams_left_uni": {
+          "text": "Returns the number of unidirectional streams that can be created\nbefore the peer's stream count limit is reached.\n\nThis can be useful to know if it's possible to create a unidirectional\nstream without trying it first.",
+          "source": "lib.rs",
+          "line": 6756
+        },
+        "readable": {
+          "text": "Returns an iterator over streams that have outstanding data to read.\n\nNote that the iterator will only include streams that were readable at\nthe time the iterator itself was created (i.e. when `readable()` was\ncalled). To account for newly readable streams, the iterator needs to\nbe created again.\n\n## Examples:\n\n```no_run\n# let mut buf = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\n// Iterate over readable streams.\nfor stream_id in conn.readable() {\n    // Stream is readable, read until there's no more data.\n    while let Ok((read, fin)) = conn.stream_recv(stream_id, &mut buf) {\n        println!(\"Got {} bytes on stream {}\", read, stream_id);\n    }\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 6766
+        },
+        "writable": {
+          "text": "Returns an iterator over streams that can be written in priority order.\n\nThe priority order is based on RFC 9218 scheduling recommendations.\nStream priority can be controlled using [`stream_priority()`]. In order\nto support fairness requirements, each time this method is called,\ninternal state is updated. Therefore the iterator ordering can change\nbetween calls, even if no streams were added or removed.\n\nA \"writable\" stream is a stream that has enough flow control capacity to\nsend data to the peer. To avoid buffering an infinite amount of data,\nstreams are only allowed to buffer outgoing data up to the amount that\nthe peer allows to send.\n\nStopped streams are also included so that a write or capacity query can\nreturn [`StreamStopped`], even without connection send capacity.\n\nNote that the iterator will only include streams that were writable at\nthe time the iterator itself was created (i.e. when `writable()` was\ncalled). To account for newly writable streams, the iterator needs to be\ncreated again.\n\n## Examples:\n\n```no_run\n# let mut buf = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let local = socket.local_addr().unwrap();\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\n// Iterate over writable streams.\nfor stream_id in conn.writable() {\n    // Stream is writable, write some data.\n    if let Ok(written) = conn.stream_send(stream_id, &buf, false) {\n        println!(\"Written {} bytes on stream {}\", written, stream_id);\n    }\n}\n# Ok::<(), quiche::Error>(())\n```\n[`stream_priority()`]: struct.Connection.html#method.stream_priority\n[`StreamStopped`]: enum.Error.html#variant.StreamStopped",
+          "source": "lib.rs",
+          "line": 6797
+        },
+        "max_send_udp_payload_size": {
+          "text": "Returns the maximum possible size of egress UDP payloads.\n\nThis is the maximum size of UDP payloads that can be sent, and depends\non both the configured maximum send payload size of the local endpoint\n(as configured with [`set_max_send_udp_payload_size()`]), as well as\nthe transport parameter advertised by the remote peer.\n\nNote that this value can change during the lifetime of the connection,\nbut should remain stable across consecutive calls to [`send()`].\n\n[`set_max_send_udp_payload_size()`]:\n    struct.Config.html#method.set_max_send_udp_payload_size\n[`send()`]: struct.Connection.html#method.send",
+          "source": "lib.rs",
+          "line": 6849
+        },
+        "send_ack_eliciting": {
+          "text": "Schedule an ack-eliciting packet on the active path.\n\nQUIC packets might not contain ack-eliciting frames during normal\noperating conditions. If the packet would already contain\nack-eliciting frames, this method does not change any behavior.\nHowever, if the packet would not ordinarily contain ack-eliciting\nframes, this method ensures that a PING frame sent.\n\nCalling this method multiple times before [`send()`] has no effect.\n\n[`send()`]: struct.Connection.html#method.send",
+          "source": "lib.rs",
+          "line": 6882
+        },
+        "send_ack_eliciting_on_path": {
+          "text": "Schedule an ack-eliciting packet on the specified path.\n\nSee [`send_ack_eliciting()`] for more detail. [`InvalidState`] is\nreturned if there is no record of the path.\n\n[`send_ack_eliciting()`]: struct.Connection.html#method.send_ack_eliciting\n[`InvalidState`]: enum.Error.html#variant.InvalidState",
+          "source": "lib.rs",
+          "line": 6901
+        },
+        "dgram_recv": {
+          "text": "Reads the first received DATAGRAM.\n\nOn success the DATAGRAM's data is returned along with its size.\n\n[`Done`] is returned if there is no data to read.\n\n[`BufferTooShort`] is returned if the provided buffer is too small for\nthe DATAGRAM.\n\n[`Done`]: enum.Error.html#variant.Done\n[`BufferTooShort`]: enum.Error.html#variant.BufferTooShort\n\n## Examples:\n\n```no_run\n# let mut buf = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\nlet mut dgram_buf = [0; 512];\nwhile let Ok((len)) = conn.dgram_recv(&mut dgram_buf) {\n    println!(\"Got {} bytes of DATAGRAM\", len);\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 6922
+        },
+        "dgram_recv_buf": {
+          "text": "Reads the first received DATAGRAM.\n\nThis is the same as [`dgram_recv()`] but returns the DATAGRAM as an\nowned buffer instead of copying into the provided buffer.\n\n[`dgram_recv()`]: struct.Connection.html#method.dgram_recv",
+          "source": "lib.rs",
+          "line": 6967
+        },
+        "dgram_recv_peek": {
+          "text": "Reads the first received DATAGRAM without removing it from the queue.\n\nOn success the DATAGRAM's data is returned along with the actual number\nof bytes peeked. The requested length cannot exceed the DATAGRAM's\nactual length.\n\n[`Done`] is returned if there is no data to read.\n\n[`BufferTooShort`] is returned if the provided buffer is smaller the\nnumber of bytes to peek.\n\n[`Done`]: enum.Error.html#variant.Done\n[`BufferTooShort`]: enum.Error.html#variant.BufferTooShort",
+          "source": "lib.rs",
+          "line": 6978
+        },
+        "dgram_recv_front_len": {
+          "text": "Returns the length of the first stored DATAGRAM.",
+          "source": "lib.rs",
+          "line": 6996
+        },
+        "dgram_recv_queue_len": {
+          "text": "Returns the number of items in the DATAGRAM receive queue.",
+          "source": "lib.rs",
+          "line": 7002
+        },
+        "dgram_recv_queue_byte_size": {
+          "text": "Returns the total size of all items in the DATAGRAM receive queue.",
+          "source": "lib.rs",
+          "line": 7008
+        },
+        "dgram_send_queue_len": {
+          "text": "Returns the number of items in the DATAGRAM send queue.",
+          "source": "lib.rs",
+          "line": 7014
+        },
+        "dgram_send_queue_byte_size": {
+          "text": "Returns the total size of all items in the DATAGRAM send queue.",
+          "source": "lib.rs",
+          "line": 7020
+        },
+        "is_dgram_send_queue_full": {
+          "text": "Returns whether or not the DATAGRAM send queue is full.",
+          "source": "lib.rs",
+          "line": 7026
+        },
+        "is_dgram_recv_queue_full": {
+          "text": "Returns whether or not the DATAGRAM recv queue is full.",
+          "source": "lib.rs",
+          "line": 7032
+        },
+        "dgram_send": {
+          "text": "Sends data in a DATAGRAM frame.\n\n[`Done`] is returned if no data was written.\n[`InvalidState`] is returned if the peer does not support DATAGRAM.\n[`BufferTooShort`] is returned if the DATAGRAM frame length is larger\nthan peer's supported DATAGRAM frame length. Use\n[`dgram_max_writable_len()`] to get the largest supported DATAGRAM\nframe length.\n\nNote that there is no flow control of DATAGRAM frames, so in order to\navoid buffering an infinite amount of frames we apply an internal\nlimit.\n\n[`Done`]: enum.Error.html#variant.Done\n[`InvalidState`]: enum.Error.html#variant.InvalidState\n[`BufferTooShort`]: enum.Error.html#variant.BufferTooShort\n[`dgram_max_writable_len()`]:\nstruct.Connection.html#method.dgram_max_writable_len\n\n## Examples:\n\n```no_run\n# let mut buf = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\nconn.dgram_send(b\"hello\")?;\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 7038
+        },
+        "dgram_send_buf": {
+          "text": "Sends data in a DATAGRAM frame.\n\nThis is the same as [`dgram_send()`] but takes an owned buffer\ninstead of a slice and avoids copying.\n\n[`dgram_send()`]: struct.Connection.html#method.dgram_send",
+          "source": "lib.rs",
+          "line": 7074
+        },
+        "dgram_purge_outgoing": {
+          "text": "Purges queued outgoing DATAGRAMs matching the predicate.\n\nIn other words, remove all elements `e` such that `f(&e)` returns true.\n\n## Examples:\n```no_run\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\nconn.dgram_send(b\"hello\")?;\nconn.dgram_purge_outgoing(&|d: &[u8]| -> bool { d[0] == 0 });\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 7104
+        },
+        "dgram_max_writable_len": {
+          "text": "Returns the maximum DATAGRAM payload that can be sent.\n\n[`None`] is returned if the peer hasn't advertised a maximum DATAGRAM\nframe size.\n\n## Examples:\n\n```no_run\n# let mut buf = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let local = socket.local_addr().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\nif let Some(payload_size) = conn.dgram_max_writable_len() {\n    if payload_size > 5 {\n        conn.dgram_send(b\"hello\")?;\n    }\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 7125
+        },
+        "timeout_instant": {
+          "text": "Returns when the next timeout event will occur.\n\nOnce the timeout Instant has been reached, the [`on_timeout()`] method\nshould be called. A timeout of `None` means that the timer should be\ndisarmed.\n\n[`on_timeout()`]: struct.Connection.html#method.on_timeout",
+          "source": "lib.rs",
+          "line": 7180
+        },
+        "timeout": {
+          "text": "Returns the amount of time until the next timeout event.\n\nOnce the given duration has elapsed, the [`on_timeout()`] method should\nbe called. A timeout of `None` means that the timer should be disarmed.\n\n[`on_timeout()`]: struct.Connection.html#method.on_timeout",
+          "source": "lib.rs",
+          "line": 7219
+        },
+        "on_timeout": {
+          "text": "Processes a timeout event.\n\nIf no timeout has occurred it does nothing.",
+          "source": "lib.rs",
+          "line": 7237
+        },
+        "probe_path": {
+          "text": "Requests the stack to perform path validation of the proposed 4-tuple.\n\nProbing new paths requires spare Connection IDs at both the host and the\npeer sides. If it is not the case, it raises an [`OutOfIdentifiers`].\n\nThe probing of new addresses can only be done by the client. The server\ncan only probe network paths that were previously advertised by\n[`PathEvent::New`]. If the server tries to probe such an unseen network\npath, this call raises an [`InvalidState`].\n\nThe caller might also want to probe an existing path. In such case, it\ntriggers a PATH_CHALLENGE frame, but it does not require spare CIDs.\n\nA server always probes a new path it observes. Calling this method is\nhence not required to validate a new path. However, a server can still\nrequest an additional path validation of the proposed 4-tuple.\n\nCalling this method several times before calling [`send()`] or\n[`send_on_path()`] results in a single probe being generated. An\napplication wanting to send multiple in-flight probes must call this\nmethod again after having sent packets.\n\nReturns the Destination Connection ID sequence number associated to that\npath.\n\n[`PathEvent::New`]: enum.PathEvent.html#variant.New\n[`OutOfIdentifiers`]: enum.Error.html#OutOfIdentifiers\n[`InvalidState`]: enum.Error.html#InvalidState\n[`send()`]: struct.Connection.html#method.send\n[`send_on_path()`]: struct.Connection.html#method.send_on_path",
+          "source": "lib.rs",
+          "line": 7327
+        },
+        "migrate_source": {
+          "text": "Migrates the connection to a new local address `local_addr`.\n\nThe behavior is similar to [`migrate()`], with the nuance that the\nconnection only changes the local address, but not the peer one.\n\nSee [`migrate()`] for the full specification of this method.\n\n[`migrate()`]: struct.Connection.html#method.migrate",
+          "source": "lib.rs",
+          "line": 7372
+        },
+        "migrate": {
+          "text": "Migrates the connection over the given network path between `local_addr`\nand `peer_addr`.\n\nConnection migration can only be initiated by the client. Calling this\nmethod as a server returns [`InvalidState`].\n\nTo initiate voluntary migration, there should be enough Connection IDs\nat both sides. If this requirement is not satisfied, this call returns\n[`OutOfIdentifiers`].\n\nReturns the Destination Connection ID associated to that migrated path.\n\n[`OutOfIdentifiers`]: enum.Error.html#OutOfIdentifiers\n[`InvalidState`]: enum.Error.html#InvalidState",
+          "source": "lib.rs",
+          "line": 7385
+        },
+        "new_scid": {
+          "text": "Provides additional source Connection IDs that the peer can use to reach\nthis host.\n\nThis triggers sending NEW_CONNECTION_ID frames if the provided Source\nConnection ID is not already present. In the case the caller tries to\nreuse a Connection ID with a different reset token, this raises an\n`InvalidState`.\n\nAt any time, the peer cannot have more Destination Connection IDs than\nthe maximum number of active Connection IDs it negotiated. In such case\n(i.e., when [`scids_left()`] returns 0), if the host agrees to\nrequest the removal of previous connection IDs, it sets the\n`retire_if_needed` parameter. Otherwise, an [`IdLimit`] is returned.\n\nNote that setting `retire_if_needed` does not prevent this function from\nreturning an [`IdLimit`] in the case the caller wants to retire still\nunannounced Connection IDs.\n\nThe caller is responsible for ensuring that the provided `scid` is not\nrepeated several times over the connection. quiche ensures that as long\nas the provided Connection ID is still in use (i.e., not retired), it\ndoes not assign a different sequence number.\n\nNote that if the host uses zero-length Source Connection IDs, it cannot\nadvertise Source Connection IDs and calling this method returns an\n[`InvalidState`].\n\nReturns the sequence number associated to the provided Connection ID.\n\n[`scids_left()`]: struct.Connection.html#method.scids_left\n[`IdLimit`]: enum.Error.html#IdLimit\n[`InvalidState`]: enum.Error.html#InvalidState",
+          "source": "lib.rs",
+          "line": 7461
+        },
+        "active_scids": {
+          "text": "Returns the number of source Connection IDs that are active. This is\nonly meaningful if the host uses non-zero length Source Connection IDs.",
+          "source": "lib.rs",
+          "line": 7505
+        },
+        "scids_left": {
+          "text": "Returns the number of additional source Connection IDs that can be\nprovided to the peer without exceeding the limit it advertised.\n\nThe limit is the minimum of the locally configured active connection\nID limit and the one sent by the peer.\n\nReturns `0` when the peer's limit is already reached or temporarily\nexceeded (e.g. during a SCID rotation where a retirement is in\nflight and `active_scids()` transiently exceeds the advertised\nlimit).\n\nTo obtain the maximum possible value allowed by the peer an application\ncan instead inspect the [`peer_active_conn_id_limit`] value.\n\n[`peer_active_conn_id_limit`]: struct.Stats.html#structfield.peer_active_conn_id_limit",
+          "source": "lib.rs",
+          "line": 7511
+        },
+        "retire_dcid": {
+          "text": "Requests the retirement of the destination Connection ID used by the\nhost to reach its peer.\n\nThis triggers sending RETIRE_CONNECTION_ID frames.\n\nIf the application tries to retire a non-existing Destination Connection\nID sequence number, or if it uses zero-length Destination Connection ID,\nthis method returns an [`InvalidState`].\n\nAt any time, the host must have at least one Destination ID. If the\napplication tries to retire the last one, or if the caller tries to\nretire the destination Connection ID used by the current active path\nwhile having neither spare Destination Connection IDs nor validated\nnetwork paths, this method returns an [`OutOfIdentifiers`]. This\nbehavior prevents the caller from stalling the connection due to the\nlack of validated path to send non-probing packets.\n\n[`InvalidState`]: enum.Error.html#InvalidState\n[`OutOfIdentifiers`]: enum.Error.html#OutOfIdentifiers",
+          "source": "lib.rs",
+          "line": 7536
+        },
+        "path_event_next": {
+          "text": "Processes path-specific events.\n\nOn success it returns a [`PathEvent`], or `None` when there are no\nevents to report. Please refer to [`PathEvent`] for the exhaustive event\nlist.\n\nNote that all events are edge-triggered, meaning that once reported they\nwill not be reported again by calling this method again, until the event\nis re-armed.\n\n[`PathEvent`]: enum.PathEvent.html",
+          "source": "lib.rs",
+          "line": 7594
+        },
+        "retired_scids": {
+          "text": "Returns the number of source Connection IDs that are retired.",
+          "source": "lib.rs",
+          "line": 7609
+        },
+        "retired_scid_next": {
+          "text": "Returns a source `ConnectionId` that has been retired.\n\nOn success it returns a [`ConnectionId`], or `None` when there are no\nmore retired connection IDs.\n\n[`ConnectionId`]: struct.ConnectionId.html",
+          "source": "lib.rs",
+          "line": 7614
+        },
+        "available_dcids": {
+          "text": "Returns the number of spare Destination Connection IDs, i.e.,\nDestination Connection IDs that are still unused.\n\nNote that this function returns 0 if the host uses zero length\nDestination Connection IDs.",
+          "source": "lib.rs",
+          "line": 7624
+        },
+        "paths_iter": {
+          "text": "Returns an iterator over destination `SockAddr`s whose association\nwith `from` forms a known QUIC path on which packets can be sent to.\n\nThis function is typically used in combination with [`send_on_path()`].\n\nNote that the iterator includes all the possible combination of\ndestination `SockAddr`s, even those whose sending is not required now.\nIn other words, this is another way for the application to recall from\npast [`PathEvent::New`] events.\n\n[`PathEvent::New`]: enum.PathEvent.html#variant.New\n[`send_on_path()`]: struct.Connection.html#method.send_on_path\n\n## Examples:\n\n```no_run\n# let mut out = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let mut config = quiche::Config::new(quiche::PROTOCOL_VERSION)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let local = socket.local_addr().unwrap();\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\n# let mut conn = quiche::accept(&scid, None, local, peer, &mut config)?;\n// Iterate over possible destinations for the given local `SockAddr`.\nfor dest in conn.paths_iter(local) {\n    loop {\n        let (write, send_info) =\n            match conn.send_on_path(&mut out, Some(local), Some(dest)) {\n                Ok(v) => v,\n\n                Err(quiche::Error::Done) => {\n                    // Done writing for this destination.\n                    break;\n                },\n\n                Err(e) => {\n                    // An error occurred, handle it.\n                    break;\n                },\n            };\n\n        socket.send_to(&out[..write], &send_info.to).unwrap();\n    }\n}\n# Ok::<(), quiche::Error>(())\n```",
+          "source": "lib.rs",
+          "line": 7633
+        },
+        "close": {
+          "text": "Closes the connection with the given error and reason.\n\nThe `app` parameter specifies whether an application close should be\nsent to the peer. Otherwise a normal connection close is sent.\n\nIf `app` is true but the connection is not in a state that is safe to\nsend an application error (not established nor in early data), in\naccordance with [RFC\n9000](https://www.rfc-editor.org/rfc/rfc9000.html#section-10.2.3-3), the\nerror code is changed to APPLICATION_ERROR and the reason phrase is\ncleared.\n\nReturns [`Done`] if the connection had already been closed.\n\nNote that the connection will not be closed immediately. An application\nshould continue calling the [`recv()`], [`send()`], [`timeout()`] and\n[`on_timeout()`] methods as normal, until the [`is_closed()`] method\nreturns `true`.\n\n[`Done`]: enum.Error.html#variant.Done\n[`recv()`]: struct.Connection.html#method.recv\n[`send()`]: struct.Connection.html#method.send\n[`timeout()`]: struct.Connection.html#method.timeout\n[`on_timeout()`]: struct.Connection.html#method.on_timeout\n[`is_closed()`]: struct.Connection.html#method.is_closed",
+          "source": "lib.rs",
+          "line": 7697
+        },
+        "trace_id": {
+          "text": "Returns a string uniquely representing the connection.\n\nThis can be used for logging purposes to differentiate between multiple\nconnections.",
+          "source": "lib.rs",
+          "line": 7757
+        },
+        "application_proto": {
+          "text": "Returns the negotiated ALPN protocol.\n\nIf no protocol has been negotiated, the returned value is empty.",
+          "source": "lib.rs",
+          "line": 7766
+        },
+        "server_name": {
+          "text": "Returns the server name requested by the client.",
+          "source": "lib.rs",
+          "line": 7774
+        },
+        "peer_cert": {
+          "text": "Returns the peer's leaf certificate (if any) as a DER-encoded buffer.",
+          "source": "lib.rs",
+          "line": 7780
+        },
+        "peer_cert_chain": {
+          "text": "Returns the peer's certificate chain (if any) as a vector of DER-encoded\nbuffers.\n\nThe certificate at index 0 is the peer's leaf certificate, the other\ncertificates (if any) are the chain certificate authorities used to\nsign the leaf certificate.",
+          "source": "lib.rs",
+          "line": 7786
+        },
+        "session": {
+          "text": "Returns the serialized cryptographic session for the connection.\n\nThis can be used by a client to cache a connection's session, and resume\nit later using the [`set_session()`] method.\n\n[`set_session()`]: struct.Connection.html#method.set_session",
+          "source": "lib.rs",
+          "line": 7797
+        },
+        "source_id": {
+          "text": "Returns the source connection ID.\n\nWhen there are multiple IDs, and if there is an active path, the ID used\non that path is returned. Otherwise the oldest ID is returned.\n\nNote that the value returned can change throughout the connection's\nlifetime.",
+          "source": "lib.rs",
+          "line": 7808
+        },
+        "source_ids": {
+          "text": "Returns all active source connection IDs.\n\nAn iterator is returned for all active IDs (i.e. ones that have not\nbeen explicitly retired yet).",
+          "source": "lib.rs",
+          "line": 7829
+        },
+        "destination_id": {
+          "text": "Returns the destination connection ID.\n\nNote that the value returned can change throughout the connection's\nlifetime.",
+          "source": "lib.rs",
+          "line": 7838
+        },
+        "pmtu": {
+          "text": "Returns the PMTU for the active path if it exists.\n\nThis requires no additonal packets to be sent but simply checks if PMTUD\nhas completed and has found a valid PMTU.",
+          "source": "lib.rs",
+          "line": 7856
+        },
+        "revalidate_pmtu": {
+          "text": "Revalidates the PMTU for the active path by sending a new probe packet\nof PMTU size. If the probe is dropped PMTUD will restart and find a new\nvalid PMTU.\n\nIf revalidation invalidates a previously discovered larger size, a\n[`PathEvent::PmtuUpdated`] event is queued with QUIC's minimum packet\nsize. Further events report larger sizes as probes validate them.",
+          "source": "lib.rs",
+          "line": 7869
+        },
+        "is_established": {
+          "text": "Returns true if the connection handshake is complete.",
+          "source": "lib.rs",
+          "line": 7900
+        },
+        "is_resumed": {
+          "text": "Returns true if the connection is resumed.",
+          "source": "lib.rs",
+          "line": 7906
+        },
+        "is_in_early_data": {
+          "text": "Returns true if the connection has a pending handshake that has\nprogressed enough to send or receive early data.",
+          "source": "lib.rs",
+          "line": 7912
+        },
+        "early_data_reason": {
+          "text": "Returns the early data reason for the connection.\n\nThis status can be useful for logging and debugging. See [BoringSSL]\ndocumentation for a definition of the reasons.\n\n[BoringSSL]: https://commondatastorage.googleapis.com/chromium-boringssl-docs/ssl.h.html#ssl_early_data_reason_t",
+          "source": "lib.rs",
+          "line": 7919
+        },
+        "is_readable": {
+          "text": "Returns whether there is stream or DATAGRAM data available to read.",
+          "source": "lib.rs",
+          "line": 7930
+        },
+        "is_path_validated": {
+          "text": "Returns whether the network path with local address `from` and remote\naddress `peer` has been validated.\n\nIf the 4-tuple does not exist over the connection, returns an\n[`InvalidState`].\n\n[`InvalidState`]: enum.Error.html#variant.InvalidState",
+          "source": "lib.rs",
+          "line": 7936
+        },
+        "is_draining": {
+          "text": "Returns true if the connection is draining.\n\nIf this returns `true`, the connection object cannot yet be dropped, but\nno new application data can be sent or received. An application should\ncontinue calling the [`recv()`], [`timeout()`], and [`on_timeout()`]\nmethods as normal, until the [`is_closed()`] method returns `true`.\n\nIn contrast, once `is_draining()` returns `true`, calling [`send()`]\nis not required because no new outgoing packets will be generated.\n\n[`recv()`]: struct.Connection.html#method.recv\n[`send()`]: struct.Connection.html#method.send\n[`timeout()`]: struct.Connection.html#method.timeout\n[`on_timeout()`]: struct.Connection.html#method.on_timeout\n[`is_closed()`]: struct.Connection.html#method.is_closed",
+          "source": "lib.rs",
+          "line": 7954
+        },
+        "is_closed": {
+          "text": "Returns true if the connection is closed.\n\nIf this returns true, the connection object can be dropped.",
+          "source": "lib.rs",
+          "line": 7974
+        },
+        "is_timed_out": {
+          "text": "Returns true if the connection was closed due to the idle timeout.",
+          "source": "lib.rs",
+          "line": 7982
+        },
+        "peer_error": {
+          "text": "Returns the error received from the peer, if any.\n\nNote that a `Some` return value does not necessarily imply\n[`is_closed()`] or any other connection state.\n\n[`is_closed()`]: struct.Connection.html#method.is_closed",
+          "source": "lib.rs",
+          "line": 7988
+        },
+        "local_error": {
+          "text": "Returns the error [`close()`] was called with, or internally\ncreated quiche errors, if any.\n\nNote that a `Some` return value does not necessarily imply\n[`is_closed()`] or any other connection state.\n`Some` also does not guarantee that the error has been sent to\nor received by the peer.\n\n[`close()`]: struct.Connection.html#method.close\n[`is_closed()`]: struct.Connection.html#method.is_closed",
+          "source": "lib.rs",
+          "line": 7999
+        },
+        "stats": {
+          "text": "Collects and returns statistics about the connection.",
+          "source": "lib.rs",
+          "line": 8014
+        },
+        "bytes_in_flight_duration": {
+          "text": "Returns the sum of the durations when each path in the\nconnection was actively sending bytes or waiting for acks.\nNote that this could result in a duration that is longer than\nthe actual connection duration in cases where multiple paths\nare active for extended periods of time.  In practice only 1\npath is typically active at a time.\nTODO revisit computation if in the future multiple paths are\noften active at the same time.",
+          "source": "lib.rs",
+          "line": 8052
+        },
+        "peer_transport_params": {
+          "text": "Returns reference to peer's transport parameters. Returns `None` if we\nhave not yet processed the peer's transport parameters.",
+          "source": "lib.rs",
+          "line": 8066
+        },
+        "path_stats": {
+          "text": "Collects and returns statistics about each known path for the\nconnection.",
+          "source": "lib.rs",
+          "line": 8076
+        },
+        "is_server": {
+          "text": "Returns whether or not this is a server-side connection.",
+          "source": "lib.rs",
+          "line": 8082
+        },
+        "do_handshake": {
+          "text": "Continues the handshake.\n\nIf the connection is already established, it does nothing.",
+          "source": "lib.rs",
+          "line": 8202
+        },
+        "write_pkt_type": {
+          "text": "Selects the packet type for the next outgoing packet.",
+          "source": "lib.rs",
+          "line": 8360
+        },
+        "get_or_create_stream": {
+          "text": "Returns the mutable stream with the given ID if it exists, or creates\na new one otherwise.",
+          "source": "lib.rs",
+          "line": 8480
+        },
+        "get_or_create_stream_for_received_frame": {
+          "text": "Gets or creates a stream referenced by a received frame.",
+          "source": "lib.rs",
+          "line": 8494
+        },
+        "process_frame": {
+          "text": "Processes an incoming frame.",
+          "source": "lib.rs",
+          "line": 8509
+        },
+        "drop_epoch_state": {
+          "text": "Drops the keys and recovery state for the given epoch.",
+          "source": "lib.rs",
+          "line": 9103
+        },
+        "max_rx_data": {
+          "text": "Returns the connection level flow control limit.",
+          "source": "lib.rs",
+          "line": 9121
+        },
+        "should_send_handshake_done": {
+          "text": "Returns true if the HANDSHAKE_DONE frame needs to be sent.",
+          "source": "lib.rs",
+          "line": 9126
+        },
+        "idle_timeout": {
+          "text": "Returns the idle timeout value.\n\n`None` is returned if both end-points disabled the idle timeout.",
+          "source": "lib.rs",
+          "line": 9131
+        },
+        "handshake_status": {
+          "text": "Returns the connection's handshake status for use in loss recovery.",
+          "source": "lib.rs",
+          "line": 9168
+        },
+        "update_tx_cap": {
+          "text": "Updates send capacity.",
+          "source": "lib.rs",
+          "line": 9180
+        },
+        "get_or_create_recv_path_id": {
+          "text": "Selects the path that the incoming packet belongs to, or creates a new\none if no existing path matches.",
+          "source": "lib.rs",
+          "line": 9232
+        },
+        "get_send_path_id": {
+          "text": "Selects the path on which the next packet must be sent.",
+          "source": "lib.rs",
+          "line": 9352
+        },
+        "set_active_path": {
+          "text": "Sets the path with identifier 'path_id' to be active.",
+          "source": "lib.rs",
+          "line": 9389
+        },
+        "on_peer_migrated": {
+          "text": "Handles potential connection migration.",
+          "source": "lib.rs",
+          "line": 9407
+        },
+        "create_path_on_client": {
+          "text": "Creates a new client-side path.",
+          "source": "lib.rs",
+          "line": 9430
+        }
+      }
+    },
+    "lib.RetryConnectionIds": {
+      "text": "A wrapper for connection IDs used in [`accept_with_retry`].",
+      "source": "lib.rs",
+      "line": 1716,
+      "fields": {
+        "original_destination_cid": "The DCID of the first Initial packet received by the server, which\ntriggered the Retry packet.",
+        "retry_source_cid": "The SCID of the Retry packet sent by the server. This can be different\nfrom the new connection's SCID."
+      }
+    },
+    "lib.Stats": {
+      "text": "Statistics about the connection.\n\nA connection's statistics can be collected using the [`stats()`] method.\n\n[`stats()`]: struct.Connection.html#method.stats",
+      "source": "lib.rs",
+      "line": 9627,
+      "fields": {
+        "recv": "The number of QUIC packets received.",
+        "sent": "The number of QUIC packets sent.",
+        "lost": "The number of QUIC packets that were lost.",
+        "spurious_lost": "The number of QUIC packets that were marked as lost but later acked.",
+        "retrans": "The number of sent QUIC packets with retransmitted data.",
+        "sent_bytes": "The number of sent bytes.",
+        "recv_bytes": "The number of received bytes.",
+        "acked_bytes": "The number of bytes sent acked.",
+        "lost_bytes": "The number of bytes sent lost.",
+        "stream_retrans_bytes": "The number of stream bytes retransmitted.",
+        "dgram_recv": "The number of DATAGRAM frames received.",
+        "dgram_sent": "The number of DATAGRAM frames sent.",
+        "paths_count": "The number of known paths for the connection.",
+        "reset_stream_count_local": "The number of streams reset by local.",
+        "stopped_stream_count_local": "The number of streams stopped by local.",
+        "reset_stream_count_remote": "The number of streams reset by remote.",
+        "stopped_stream_count_remote": "The number of streams stopped by remote.",
+        "data_blocked_sent_count": "The number of DATA_BLOCKED frames sent due to hitting the connection\nflow control limit.",
+        "stream_data_blocked_sent_count": "The number of STREAM_DATA_BLOCKED frames sent due to a stream hitting\nthe stream flow control limit.",
+        "data_blocked_recv_count": "The number of DATA_BLOCKED frames received from the remote.",
+        "stream_data_blocked_recv_count": "The number of STREAM_DATA_BLOCKED frames received from the remote.",
+        "streams_blocked_bidi_recv_count": "The number of STREAMS_BLOCKED frames for bidirectional streams received\nfrom the remote, indicating the peer is blocked on opening new\nbidirectional streams.",
+        "streams_blocked_uni_recv_count": "The number of STREAMS_BLOCKED frames for unidirectional streams received\nfrom the remote, indicating the peer is blocked on opening new\nunidirectional streams.",
+        "path_challenge_rx_count": "The total number of PATH_CHALLENGE frames that were received.",
+        "amplification_limited_count": "The number of times send() was blocked because the anti-amplification\nbudget (bytes received \u00d7 max_amplification_factor) was exhausted.",
+        "bytes_in_flight_duration": "Total duration during which this side of the connection was\nactively sending bytes or waiting for those bytes to be acked.",
+        "tx_buffered_state": "Health state of the connection's tx_buffered.\n\nIndicates whether the streams.tx_buffered value is consistent with\nthe actual sum of bytes buffered across all stream send buffers.\nReturns `Ok` if consistent, `Inconsistent` if there's a mismatch."
+      }
+    },
+    "h3.Error": {
+      "text": "An HTTP/3 error.",
+      "source": "h3/mod.rs",
+      "line": 367,
+      "variants": {
+        "Done": "There is no error or no work to do",
+        "BufferTooShort": "The provided buffer is too short.",
+        "InternalError": "Internal error in the HTTP/3 stack.",
+        "ExcessiveLoad": "Endpoint detected that the peer is exhibiting behavior that causes.\nexcessive load.",
+        "IdError": "Stream ID or Push ID greater that current maximum was\nused incorrectly, such as exceeding a limit, reducing a limit,\nor being reused.",
+        "StreamCreationError": "The endpoint detected that its peer created a stream that it will not\naccept.",
+        "ClosedCriticalStream": "A required critical stream was closed.",
+        "MissingSettings": "No SETTINGS frame at beginning of control stream.",
+        "FrameUnexpected": "A frame was received which is not permitted in the current state.",
+        "FrameError": "Frame violated layout or size rules.",
+        "QpackDecompressionFailed": "QPACK Header block decompression failure.",
+        "TransportError": "Error originated from the transport layer.",
+        "StreamBlocked": "The underlying QUIC stream (or connection) doesn't have enough capacity\nfor the operation to complete. The application should retry later on.",
+        "SettingsError": "Error in the payload of a SETTINGS frame.",
+        "RequestRejected": "Server rejected request.",
+        "RequestCancelled": "Request or its response cancelled.",
+        "RequestIncomplete": "Client's request stream terminated without containing a full-formed\nrequest.",
+        "MessageError": "An HTTP message was malformed and cannot be processed.",
+        "ConnectError": "The TCP connection established in response to a CONNECT request was\nreset or abnormally closed.",
+        "VersionFallback": "The requested operation cannot be served over HTTP/3. Peer should retry\nover HTTP/1.1."
+      }
+    },
+    "h3.WireErrorCode": {
+      "text": "HTTP/3 error codes sent on the wire.\n\nThese are from the IANA registry at\nhttps://www.iana.org/assignments/http3-parameters/http3-parameters.xhtml\n(Section: \"HTTP/3 Error Codes\")\n\nMost of these are defined in\n[RFC9114](https://www.rfc-editor.org/rfc/rfc9114.html#http-error-codes).",
+      "source": "h3/mod.rs",
+      "line": 439,
+      "variants": {
+        "DatagramError": "Datagram or Capsule Protocol error per\n[RFC9297](https://datatracker.ietf.org/doc/html/rfc9297#name-http-3-error-code)",
+        "NoError": "No error. This is used when the connection or stream needs to be closed,\nbut there is no error to signal.",
+        "GeneralProtocolError": "Peer violated protocol requirements in a way that does not match a more\nspecific error code or endpoint declines to use the more specific\nerror code.",
+        "InternalError": "An internal error has occurred in the HTTP stack.",
+        "StreamCreationError": "The endpoint detected that its peer created a stream that it will not\naccept.",
+        "ClosedCriticalStream": "A stream required by the HTTP/3 connection was closed or reset.",
+        "FrameUnexpected": "A frame was received that was not permitted in the current state or on\nthe current stream.",
+        "FrameError": "A frame that fails to satisfy layout requirements or with an invalid\nsize was received.",
+        "ExcessiveLoad": "The endpoint detected that its peer is exhibiting a behavior that might\nbe generating excessive load.",
+        "IdError": "A stream ID or push ID was used incorrectly, such as exceeding a limit,\nreducing a limit, or being reused.",
+        "SettingsError": "An endpoint detected an error in the payload of a SETTINGS frame.",
+        "MissingSettings": "No SETTINGS frame was received at the beginning of the control stream.",
+        "RequestRejected": "A server rejected a request without performing any application\nprocessing.",
+        "RequestCancelled": "The request or its response (including pushed response) is cancelled.",
+        "RequestIncomplete": "The client's stream terminated without containing a fully formed\nrequest.",
+        "MessageError": "An HTTP message was malformed and cannot be processed.",
+        "ConnectError": "The TCP connection established in response to a CONNECT request was\nreset or abnormally closed.",
+        "VersionFallback": "The requested operation cannot be served over HTTP/3. The peer should\nretry over HTTP/1.1."
+      }
+    },
+    "h3.Config": {
+      "text": "An HTTP/3 configuration.",
+      "source": "h3/mod.rs",
+      "line": 584,
+      "fields": {
+        "additional_settings": "additional settings are settings that are not part of the H3\nsettings explicitly handled above"
+      },
+      "methods": {
+        "new": {
+          "text": "Creates a new configuration object with default settings.",
+          "source": "h3/mod.rs",
+          "line": 598
+        },
+        "set_max_field_section_size": {
+          "text": "Sets the `SETTINGS_MAX_FIELD_SECTION_SIZE` setting.\n\nThe default is [`SETTINGS_MAX_FIELD_SECTION_SIZE_DEFAULT`]. The value is\nmeasured in units of bytes, it is used as a limit when parsing frames\nthat contain encoded HTTP headers when [`poll()`] is called. A first\ncheck is applied when handling HEADERS and PUSH_PROMISE frames\nthemselves, with some margin allowed on top of the provided size. A\nsecond check is applied when decoding QPACK, implementing the rules\ndescribed in <https://datatracker.ietf.org/doc/html/rfc9114#section-4.2.2>.\n\nWhen headers exceed the limit set by the application, the call to the\n[`poll()`] method will return the [`Error::ExcessiveLoad`] error, and\nthe connection will be closed.\n\n[`poll()`]: struct.Connection.html#method.poll\n[`Error::ExcessiveLoad`]: enum.Error.html#variant.ExcessiveLoad",
+          "source": "h3/mod.rs",
+          "line": 611
+        },
+        "set_qpack_max_table_capacity": {
+          "text": "Sets the `SETTINGS_QPACK_MAX_TABLE_CAPACITY` setting.\n\nThe default value is `0`.",
+          "source": "h3/mod.rs",
+          "line": 631
+        },
+        "set_qpack_blocked_streams": {
+          "text": "Sets the `SETTINGS_QPACK_BLOCKED_STREAMS` setting.\n\nThe default value is `0`.",
+          "source": "h3/mod.rs",
+          "line": 638
+        },
+        "enable_extended_connect": {
+          "text": "Sets or omits the `SETTINGS_ENABLE_CONNECT_PROTOCOL` setting.\n\nThe default value is `false`.",
+          "source": "h3/mod.rs",
+          "line": 645
+        },
+        "set_additional_settings": {
+          "text": "Sets additional HTTP/3 settings.\n\nThe default value is no additional settings.\nThe `additional_settings` parameter must not the following\nsettings as they are already handled by this library:\n\n- SETTINGS_QPACK_MAX_TABLE_CAPACITY\n- SETTINGS_MAX_FIELD_SECTION_SIZE\n- SETTINGS_QPACK_BLOCKED_STREAMS\n- SETTINGS_ENABLE_CONNECT_PROTOCOL\n- SETTINGS_H3_DATAGRAM\n\nIf such a setting is present in the `additional_settings`,\nthe method will return the [`Error::SettingsError`] error.\n\nIf a setting identifier is present twice in `additional_settings`,\nthe method will return the [`Error::SettingsError`] error.\n\n[`Error::SettingsError`]: enum.Error.html#variant.SettingsError",
+          "source": "h3/mod.rs",
+          "line": 656
+        },
+        "set_max_priority_update_size": {
+          "text": "Sets the maximum size for the payload of PRIORITY_UPDATE frames.\n\nThe default is [`PRIORITY_UPDATE_FRAME_PAYLOAD_MAX_SIZE_DEFAULT`]. The\nvalue uses units of bytes.\n\nWhen a PRIORITY_UPDATE frame exceeds the limit set by the application,\nthe call to the [`poll()`] method will return the\n[`Error::ExcessiveLoad`] error, and the connection will be closed.\n\n[`poll()`]: struct.Connection.html#method.poll\n[`Error::ExcessiveLoad`]: enum.Error.html#variant.ExcessiveLoad",
+          "source": "h3/mod.rs",
+          "line": 699
+        }
+      }
+    },
+    "h3.Header": {
+      "text": "An owned name-value pair representing a raw HTTP header.",
+      "source": "h3/mod.rs",
+      "line": 738,
+      "fields": {}
+    },
+    "h3.HeaderRef": {
+      "text": "A non-owned name-value pair representing a raw HTTP header.",
+      "source": "h3/mod.rs",
+      "line": 778,
+      "fields": {}
+    },
+    "h3.Event": {
+      "text": "An HTTP/3 connection event.",
+      "source": "h3/mod.rs",
+      "line": 799,
+      "variants": {
+        "Headers": "Request/response headers were received.",
+        "Data": "Data was received.\n\nThis indicates that the application can use the [`recv_body()`] method\nto retrieve the data from the stream.\n\nNote that [`recv_body()`] will need to be called repeatedly until the\n[`Done`] value is returned, as the event will not be re-armed until all\nbuffered data is read.\n\n[`recv_body()`]: struct.Connection.html#method.recv_body\n[`Done`]: enum.Error.html#variant.Done",
+        "Finished": "Stream was closed,",
+        "Reset": "Stream was reset.\n\nThe associated data represents the error code sent by the peer.",
+        "PriorityUpdate": "PRIORITY_UPDATE was received.\n\nThis indicates that the application can use the\n[`take_last_priority_update()`] method to take the last received\nPRIORITY_UPDATE for a specified stream.\n\nThis event is triggered once per stream until the last PRIORITY_UPDATE\nis taken. It is recommended that applications defer taking the\nPRIORITY_UPDATE until after [`poll()`] returns [`Done`].\n\n[`take_last_priority_update()`]: struct.Connection.html#method.take_last_priority_update\n[`poll()`]: struct.Connection.html#method.poll\n[`Done`]: enum.Error.html#variant.Done",
+        "GoAway": "GOAWAY was received."
+      }
+    },
+    "h3.Priority": {
+      "text": "Extensible Priorities parameters.\n\nThe `TryFrom` trait supports constructing this object from the serialized\nStructured Fields Dictionary field value. I.e, use `TryFrom` to parse the\nvalue of a Priority header field or a PRIORITY_UPDATE frame. Using this\ntrait requires the `sfv` feature to be enabled.",
+      "source": "h3/mod.rs",
+      "line": 852,
+      "fields": {}
+    },
+    "h3.Stats": {
+      "text": "Statistics about the connection.\n\nA connection's statistics can be collected using the [`stats()`] method.\n\n[`stats()`]: struct.Connection.html#method.stats",
+      "source": "h3/mod.rs",
+      "line": 968,
+      "fields": {
+        "qpack_encoder_stream_recv_bytes": "The number of bytes received on the QPACK encoder stream.",
+        "qpack_decoder_stream_recv_bytes": "The number of bytes received on the QPACK decoder stream."
+      }
+    },
+    "h3.Connection": {
+      "text": "An HTTP/3 connection.",
+      "source": "h3/mod.rs",
+      "line": 1004,
+      "fields": {},
+      "methods": {
+        "with_transport": {
+          "text": "Creates a new HTTP/3 connection using the provided QUIC connection.\n\nThis will also initiate the HTTP/3 handshake with the peer by opening\nall control streams (including QPACK) and sending the local settings.\n\nOn success the new connection is returned.\n\nThe [`StreamLimit`] error is returned when the HTTP/3 control stream\ncannot be created due to stream limits.\n\nThe [`InternalError`] error is returned when either the underlying QUIC\nconnection is not in a suitable state, or the HTTP/3 control stream\ncannot be created due to flow control limits.\n\n[`StreamLimit`]: ../enum.Error.html#variant.StreamLimit\n[`InternalError`]: ../enum.Error.html#variant.InternalError",
+          "source": "h3/mod.rs",
+          "line": 1099
+        },
+        "send_request": {
+          "text": "Sends an HTTP/3 request.\n\nThe request is encoded from the provided list of headers without a\nbody, and sent on a newly allocated stream. To include a body,\nset `fin` as `false` and subsequently call [`send_body()`] with the\nsame `conn` and the `stream_id` returned from this method.\n\nOn success the newly allocated stream ID is returned.\n\nThe [`StreamBlocked`] error is returned when the underlying QUIC stream\ndoesn't have enough capacity for the operation to complete. When this\nhappens the application should retry the **entire** `send_request` call\nonce the stream is reported as writable again. Any partial state created\nby the failed call is rolled back, so repeating the call with the same\narguments is safe.\n\n[`send_body()`]: struct.Connection.html#method.send_body\n[`StreamBlocked`]: enum.Error.html#variant.StreamBlocked",
+          "source": "h3/mod.rs",
+          "line": 1150
+        },
+        "send_response": {
+          "text": "Sends an HTTP/3 response on the specified stream with default priority.\n\nThis method sends the provided `headers` as a single initial response\nwithout a body.\n\nTo send a non-final 1xx, then a final 200+ without body:\n  * send_response() with `fin` set to `false`.\n  * [`send_additional_headers()`] with fin set to `true` using the same\n    `stream_id` value.\n\nTo send a non-final 1xx, then a final 200+ with body:\n  * send_response() with `fin` set to `false`.\n  * [`send_additional_headers()`] with fin set to `false` and same\n    `stream_id` value.\n  * [`send_body()`] with same `stream_id`.\n\nTo send a final 200+ with body:\n  * send_response() with `fin` set to `false`.\n  * [`send_body()`] with same `stream_id`.\n\nAdditional headers can only be sent during certain phases of an HTTP/3\nmessage exchange, see [Section 4.1 of RFC 9114]. The [`FrameUnexpected`]\nerror is returned if this method, or [`send_response_with_priority()`],\nare called multiple times with the same `stream_id` value.\n\nThe [`StreamBlocked`] error is returned when the underlying QUIC stream\ndoesn't have enough capacity for the operation to complete. When this\nhappens the application should retry the operation once the stream is\nreported as writable again.\n\n[`send_body()`]: struct.Connection.html#method.send_body\n[`send_additional_headers()`]:\n    struct.Connection.html#method.send_additional_headers\n[`send_response_with_priority()`]:\n    struct.Connection.html#method.send_response_with_priority\n[`FrameUnexpected`]: enum.Error.html#variant.FrameUnexpected\n[`StreamBlocked`]: enum.Error.html#variant.StreamBlocked",
+          "source": "h3/mod.rs",
+          "line": 1228
+        },
+        "send_response_with_priority": {
+          "text": "Sends an HTTP/3 response on the specified stream with specified\npriority.\n\nThis method sends the provided `headers` as a single initial response\nwithout a body.\n\nTo send a non-final 1xx, then a final 200+ without body:\n  * send_response_with_priority() with `fin` set to `false`.\n  * [`send_additional_headers()`] with fin set to `true` using the same\n    `stream_id` value.\n\nTo send a non-final 1xx, then a final 200+ with body:\n  * send_response_with_priority() with `fin` set to `false`.\n  * [`send_additional_headers()`] with fin set to `false` and same\n    `stream_id` value.\n  * [`send_body()`] with same `stream_id`.\n\nTo send a final 200+ with body:\n  * send_response_with_priority() with `fin` set to `false`.\n  * [`send_body()`] with same `stream_id`.\n\nThe `priority` parameter represents [Extensible Priority]\nparameters. If the urgency is outside the range 0-7, it will be clamped\nto 7.\n\nAdditional headers can only be sent during certain phases of an HTTP/3\nmessage exchange, see [Section 4.1 of RFC 9114]. The [`FrameUnexpected`]\nerror is returned if this method, or [`send_response()`],\nare called multiple times with the same `stream_id` value.\n\nThe [`StreamBlocked`] error is returned when the underlying QUIC stream\ndoesn't have enough capacity for the operation to complete. When this\nhappens the application should retry the operation once the stream is\nreported as writable again.\n\n[`send_body()`]: struct.Connection.html#method.send_body\n[`send_additional_headers()`]:\n    struct.Connection.html#method.send_additional_headers\n[`send_response()`]:\n    struct.Connection.html#method.send_response\n[`FrameUnexpected`]: enum.Error.html#variant.FrameUnexpected\n[`StreamBlocked`]: enum.Error.html#variant.StreamBlocked\n[Extensible Priority]: https://www.rfc-editor.org/rfc/rfc9218.html#section-4.",
+          "source": "h3/mod.rs",
+          "line": 1278
+        },
+        "send_additional_headers": {
+          "text": "Sends additional HTTP/3 headers.\n\nAfter the initial request or response headers have been sent, using\n[`send_request()`] or [`send_response()`] respectively, this method can\nbe used send an additional HEADERS frame. For example, to send a single\ninstance of trailers after a request with a body, or to issue another\nnon-final 1xx after a preceding 1xx, or to issue a final response after\na preceding 1xx.\n\nAdditional headers can only be sent during certain phases of an HTTP/3\nmessage exchange, see [Section 4.1 of RFC 9114]. The [`FrameUnexpected`]\nerror is returned when this method is called during the wrong phase,\nsuch as before initial headers have been sent, or if trailers have\nalready been sent.\n\nThe [`StreamBlocked`] error is returned when the underlying QUIC stream\ndoesn't have enough capacity for the operation to complete. When this\nhappens the application should retry the operation once the stream is\nreported as writable again.\n\n[`send_request()`]: struct.Connection.html#method.send_request\n[`send_response()`]: struct.Connection.html#method.send_response\n[`StreamBlocked`]: enum.Error.html#variant.StreamBlocked\n[`FrameUnexpected`]: enum.Error.html#variant.FrameUnexpected\n[Section 4.1 of RFC 9114]:\n    https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1.",
+          "source": "h3/mod.rs",
+          "line": 1351
+        },
+        "send_additional_headers_with_priority": {
+          "text": "Sends additional HTTP/3 headers with specified priority.\n\nAfter the initial request or response headers have been sent, using\n[`send_request()`] or [`send_response()`] respectively, this method can\nbe used send an additional HEADERS frame. For example, to send a single\ninstance of trailers after a request with a body, or to issue another\nnon-final 1xx after a preceding 1xx, or to issue a final response after\na preceding 1xx.\n\nThe `priority` parameter represents [Extensible Priority]\nparameters. If the urgency is outside the range 0-7, it will be clamped\nto 7.\n\nAdditional headers can only be sent during certain phases of an HTTP/3\nmessage exchange, see [Section 4.1 of RFC 9114]. The [`FrameUnexpected`]\nerror is returned when this method is called during the wrong phase,\nsuch as before initial headers have been sent, or if trailers have\nalready been sent.\n\nThe [`StreamBlocked`] error is returned when the underlying QUIC stream\ndoesn't have enough capacity for the operation to complete. When this\nhappens the application should retry the operation once the stream is\nreported as writable again.\n\n[`send_request()`]: struct.Connection.html#method.send_request\n[`send_response()`]: struct.Connection.html#method.send_response\n[`StreamBlocked`]: enum.Error.html#variant.StreamBlocked\n[`FrameUnexpected`]: enum.Error.html#variant.FrameUnexpected\n[Section 4.1 of RFC 9114]:\n    https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1.\n[Extensible Priority]: https://www.rfc-editor.org/rfc/rfc9218.html#section-4.",
+          "source": "h3/mod.rs",
+          "line": 1417
+        },
+        "send_body": {
+          "text": "Sends an HTTP/3 body chunk on the given stream.\n\nOn success the number of bytes written is returned, or [`Done`] if no\nbytes could be written (e.g. because the stream is blocked).\n\nNote that the number of written bytes returned can be lower than the\nlength of the input buffer when the underlying QUIC stream doesn't have\nenough capacity for the operation to complete.\n\nWhen a partial write happens (including when [`Done`] is returned) the\napplication should retry the operation once the stream is reported as\nwritable again.\n\n[`Done`]: enum.Error.html#variant.Done",
+          "source": "h3/mod.rs",
+          "line": 1572
+        },
+        "send_body_zc": {
+          "text": "Sends an HTTP/3 body chunk provided as a raw buffer on the given stream.\n\nIf the capacity allows it the buffer will be appended to the stream's\nsend queue with zero copying.\n\nOn success the number of bytes written is returned, or [`Done`] if no\nbytes could be written (e.g. because the stream is blocked).\n\nNote that the number of written bytes returned can be lower than the\nlength of the input buffer when the underlying QUIC stream doesn't have\nenough capacity for the operation to complete.\n\nWhen a partial write happens (including when [`Done`] is returned) the\nremaining (unwrittent) buffer will also be returned. The application\nshould retry the operation once the stream is reported as writable\nagain.\n\n[`Done`]: enum.Error.html#variant.Done",
+          "source": "h3/mod.rs",
+          "line": 1609
+        },
+        "dgram_enabled_by_peer": {
+          "text": "Returns whether the peer enabled HTTP/3 DATAGRAM frame support.\n\nSupport is signalled by the peer's SETTINGS, so this method always\nreturns false until they have been processed using the [`poll()`]\nmethod.\n\n[`poll()`]: struct.Connection.html#method.poll",
+          "source": "h3/mod.rs",
+          "line": 1813
+        },
+        "extended_connect_enabled_by_peer": {
+          "text": "Returns whether the peer enabled extended CONNECT support.\n\nSupport is signalled by the peer's SETTINGS, so this method always\nreturns false until they have been processed using the [`poll()`]\nmethod.\n\n[`poll()`]: struct.Connection.html#method.poll",
+          "source": "h3/mod.rs",
+          "line": 1827
+        },
+        "recv_body": {
+          "text": "Reads request or response body data into the provided buffer.\n\nApplications should call this method whenever the [`poll()`] method\nreturns a [`Data`] event.\n\nOn success the amount of bytes read is returned, or [`Done`] if there\nis no data to read.\n\n[`poll()`]: struct.Connection.html#method.poll\n[`Data`]: enum.Event.html#variant.Data\n[`Done`]: enum.Error.html#variant.Done",
+          "source": "h3/mod.rs",
+          "line": 1838
+        },
+        "recv_body_buf": {
+          "text": "Reads request or response body data into the provided BufMut buffer.\n\n**NOTE**:\nThe BufMut will be populated with all available data up to its capacity.\nSince some BufMut implementations, e.g., [`Vec<u8>`], dynamically\nallocate additional memory, the caller may use\n[`BufMut::limit()`] to limit the maximum amount of data that\ncan be written.\n\nApplications should call this method (or [`recv_body()`]) whenever\nthe [`poll()`] method returns a [`Data`] event.\n\nOn success the amount of bytes read is returned, or [`Done`] if there\nis no data to read.\n\n[`BufMut::limit()`]: bytes::BufMut::limit()\n[`recv_body()`]: Self::recv_body()\n[`poll()`]: struct.Connection.html#method.poll\n[`Data`]: enum.Event.html#variant.Data\n[`Done`]: enum.Error.html#variant.Done\n\n## Example:\n```no_run\n# use quiche::h3;\nfn receive(\n    qconn: &mut quiche::Connection, h3conn: &mut h3::Connection,\n) -> Result<Vec<u8>, h3::Error> {\n    use bytes::BufMut as _;\n    let mut buffer = Vec::with_capacity(2048).limit(2048);\n    let bytes = h3conn.recv_body_buf(qconn, 0, &mut buffer)?;\n    let buffer = buffer.into_inner();\n    // The vec has been filled with exactly `bytes` number of bytes\n    assert_eq!(buffer.len(), bytes);\n    Ok(buffer)\n}\n```",
+          "source": "h3/mod.rs",
+          "line": 1856
+        },
+        "send_priority_update_for_request": {
+          "text": "Sends a PRIORITY_UPDATE frame on the control stream with specified\nrequest stream ID and priority.\n\nThe `priority` parameter represents [Extensible Priority]\nparameters. If the urgency is outside the range 0-7, it will be clamped\nto 7.\n\nThe [`StreamBlocked`] error is returned when the underlying QUIC stream\ndoesn't have enough capacity for the operation to complete. When this\nhappens the application should retry the operation once the stream is\nreported as writable again.\n\n[`StreamBlocked`]: enum.Error.html#variant.StreamBlocked\n[Extensible Priority]: https://www.rfc-editor.org/rfc/rfc9218.html#section-4.",
+          "source": "h3/mod.rs",
+          "line": 1962
+        },
+        "take_last_priority_update": {
+          "text": "Take the last PRIORITY_UPDATE for a prioritized element ID.\n\nWhen the [`poll()`] method returns a [`PriorityUpdate`] event for a\nprioritized element, the event has triggered and will not rearm until\napplications call this method. It is recommended that applications defer\ntaking the PRIORITY_UPDATE until after [`poll()`] returns [`Done`].\n\nOn success the Priority Field Value is returned, or [`Done`] if there is\nno PRIORITY_UPDATE to read (either because there is no value to take, or\nbecause the prioritized element does not exist).\n\n[`poll()`]: struct.Connection.html#method.poll\n[`PriorityUpdate`]: enum.Event.html#variant.PriorityUpdate\n[`Done`]: enum.Error.html#variant.Done",
+          "source": "h3/mod.rs",
+          "line": 2065
+        },
+        "poll": {
+          "text": "Processes HTTP/3 data received from the peer.\n\nOn success it returns an [`Event`] and an ID, or [`Done`] when there are\nno events to report.\n\nNote that all events are edge-triggered, meaning that once reported they\nwill not be reported again by calling this method again, until the event\nis re-armed.\n\nThe events [`Headers`], [`Data`] and [`Finished`] return a stream ID,\nwhich is used in methods [`recv_body()`], [`send_response()`] or\n[`send_body()`].\n\nThe event [`GoAway`] returns an ID that depends on the connection role.\nA client receives the largest processed stream ID. A server receives the\nthe largest permitted push ID.\n\nThe event [`PriorityUpdate`] only occurs at servers. It returns a\nprioritized element ID that is used in the method\n[`take_last_priority_update()`], which rearms the event for that ID.\n\nIf an error occurs while processing data, the connection is closed with\nthe appropriate error code, using the transport's [`close()`] method.\n\n[`Event`]: enum.Event.html\n[`Done`]: enum.Error.html#variant.Done\n[`Headers`]: enum.Event.html#variant.Headers\n[`Data`]: enum.Event.html#variant.Data\n[`Finished`]: enum.Event.html#variant.Finished\n[`GoAway`]: enum.Event.html#variant.GoAWay\n[`PriorityUpdate`]: enum.Event.html#variant.PriorityUpdate\n[`recv_body()`]: struct.Connection.html#method.recv_body\n[`send_response()`]: struct.Connection.html#method.send_response\n[`send_body()`]: struct.Connection.html#method.send_body\n[`recv_dgram()`]: struct.Connection.html#method.recv_dgram\n[`take_last_priority_update()`]: struct.Connection.html#method.take_last_priority_update\n[`close()`]: ../struct.Connection.html#method.close",
+          "source": "h3/mod.rs",
+          "line": 2089
+        },
+        "send_goaway": {
+          "text": "Sends a GOAWAY frame to initiate graceful connection closure.\n\nWhen quiche is used in the server role, the `id` parameter is the stream\nID of the highest processed request. This can be any valid ID between 0\nand 2^62-4. However, the ID cannot be increased. Failure to satisfy\nthese conditions will return an error.\n\nThis method does not close the QUIC connection. Applications are\nrequired to call [`close()`] themselves.\n\n[`close()`]: ../struct.Connection.html#method.close",
+          "source": "h3/mod.rs",
+          "line": 2212
+        },
+        "peer_settings_raw": {
+          "text": "Gets the raw settings from peer including unknown and reserved types.\n\nThe order of settings is the same as received in the SETTINGS frame.",
+          "source": "h3/mod.rs",
+          "line": 2280
+        },
+        "send_grease_frames": {
+          "text": "Send GREASE frames on the provided stream ID.",
+          "source": "h3/mod.rs",
+          "line": 2368
+        },
+        "open_grease_stream": {
+          "text": "Opens a new unidirectional stream with a GREASE type and sends some\nunframed payload.",
+          "source": "h3/mod.rs",
+          "line": 2464
+        },
+        "send_settings": {
+          "text": "Sends SETTINGS frame based on HTTP/3 configuration.",
+          "source": "h3/mod.rs",
+          "line": 2501
+        },
+        "stats": {
+          "text": "Collects and returns statistics about the connection.",
+          "source": "h3/mod.rs",
+          "line": 3391
+        }
+      }
+    },
+    "h3.Session": {
+      "text": "Session is an HTTP/3 test helper structure. It holds a client, server\nand pipe that allows them to communicate.\n\n`default()` creates a session with some sensible default\nconfiguration. `with_configs()` allows for providing a specific\nconfiguration.\n\n`handshake()` performs all the steps needed to establish an HTTP/3\nconnection.\n\nSome utility functions are provided that make it less verbose to send\nrequest, responses and individual headers. The full quiche API remains\navailable for any test that need to do unconventional things (such as\nbad behaviour that triggers errors).",
+      "source": "h3/mod.rs",
+      "line": 3419,
+      "fields": {}
+    },
+    "packet.Type": {
+      "text": "QUIC packet type.",
+      "source": "packet.rs",
+      "line": 119,
+      "variants": {
+        "Initial": "Initial packet.",
+        "Retry": "Retry packet.",
+        "Handshake": "Handshake packet.",
+        "ZeroRTT": "0-RTT packet.",
+        "VersionNegotiation": "Version negotiation packet.",
+        "Short": "1-RTT short header packet."
+      }
+    },
+    "packet.ConnectionId": {
+      "text": "A QUIC connection ID.",
+      "source": "packet.rs",
+      "line": 185,
+      "fields": {}
+    },
+    "packet.Header": {
+      "text": "A QUIC packet's header.",
+      "source": "packet.rs",
+      "line": 293,
+      "fields": {
+        "ty": "The type of the packet.",
+        "version": "The version of the packet.",
+        "dcid": "The destination connection ID of the packet.",
+        "scid": "The source connection ID of the packet.",
+        "pkt_num": "The packet number. It's only meaningful after the header protection is\nremoved.",
+        "pkt_num_len": "The length of the packet number. It's only meaningful after the header\nprotection is removed.",
+        "token": "The address verification token of the packet. Only present in `Initial`\nand `Retry` packets.",
+        "versions": "The list of versions in the packet. Only present in\n`VersionNegotiation` packets.",
+        "key_phase": "The key phase bit of the packet. It's only meaningful after the header\nprotection is removed."
+      }
+    },
+    "packet.PktNumManager": {
+      "text": "QUIC recommends skipping packet numbers to elicit a [faster ACK] or to\nmitigate an [optimistic ACK attack] (OACK attack). quiche currently skips\npackets only for the purposes of optimistic attack mitigation.\n\n## What is an Optimistic ACK attack\nA typical endpoint is responsible for making concurrent progress on multiple\nconnections and needs to fairly allocate resources across those connection.\nIn order to ensure fairness, an endpoint relies on \"recovery signals\" to\ndetermine the optimal sending rate per connection. For example, when a new\nflow joins a shared network, it might induce packet loss for other flows and\ncause those flows to yield bandwidth on the network. ACKs are the primary\nsource of recovery signals for a QUIC connection.\n\nThe goal of an OACK attack is to mount a DDoS attack by exploiting recovery\nsignals and causing a server to expand its sending rate. A server with an\ninflated sending rate would then be able to flood a shared network and\ncripple all other flows. The fundamental reason that makes OACK\nattach possible is the use of unvalidated ACK data, which is then used to\nmodify internal state. Therefore at a high level, a mitigation should\nvalidate the incoming ACK data before use.\n\n## Optimistic ACK attack mitigation\nquiche follows the RFC's recommendation for mitigating an [optimistic ACK\nattack] by skipping packets and validating that the peer does NOT send ACKs\nfor those skipped packets. If an ACK for a skipped packet is received, the\nconnection is closed with a [PROTOCOL_VIOLATION] error.\n\nA robust mitigation should skip packets randomly to ensure that an attacker\ncan't predict which packet number was skipped. Skip/validation should happen\n\"periodically\" over the lifetime of the connection. Since skipping packets\nalso elicits a faster ACK, we need to balance the skip frequency to\nsufficiently validate the peer without impacting other aspects of recovery.\n\nA naive approach could be to skip a random packet number in the range\n200-500 (pick some static range). While this might work, its not apparent if\na static range is effective for all networks with varying bandwidths/RTTs.\n\nSince an attacker can potentially influence the sending rate once per\n\"round\", it would be ideal to validate the peer once per round. Therefore,\nan ideal range seems to be one that dynamically adjusts based on packets\nsent per round, ie. adjust skip range based on the current CWND.\n\n[faster ACK]: https://www.rfc-editor.org/rfc/rfc9002.html#section-6.2.4\n[optimistic ACK attack]: https://www.rfc-editor.org/rfc/rfc9000.html#section-21.4\n[PROTOCOL_VIOLATION]: https://www.rfc-editor.org/rfc/rfc9000#section-13.1",
+      "source": "packet.rs",
+      "line": 968,
+      "fields": {
+        "skip_pn": "Track if we have skipped a packet number.",
+        "skip_pn_counter": "Track when to skip the next packet number\n\nNone indicates the counter is not armed while Some(0) indicates that the\ncounter has expired."
+      }
+    },
+    "path.PathState": {
+      "text": "The different states of the path validation.",
+      "source": "path.rs",
+      "line": 51,
+      "variants": {
+        "Failed": "The path failed its validation.",
+        "Unknown": "The path exists, but no path validation has been performed.",
+        "Validating": "The path is under validation.",
+        "ValidatingMTU": "The remote address has been validated, but not the path MTU.",
+        "Validated": "The path has been validated."
+      }
+    },
+    "path.PathEvent": {
+      "text": "A path-specific event.",
+      "source": "path.rs",
+      "line": 83,
+      "variants": {
+        "New": "A new network path (local address, peer address) has been seen on a\nreceived packet. Note that this event is only triggered for servers, as\nthe client is responsible from initiating new paths. The application may\nthen probe this new path, if desired.",
+        "Validated": "The related network path between local `SocketAddr` and peer\n`SocketAddr` has been validated.",
+        "FailedValidation": "The related network path between local `SocketAddr` and peer\n`SocketAddr` failed to be validated. This network path will not be used\nanymore, unless the application requests probing this path again.",
+        "Closed": "The related network path between local `SocketAddr` and peer\n`SocketAddr` has been closed and is now unusable on this connection.",
+        "ReusedSourceConnectionId": "The stack observes that the Source Connection ID with the given sequence\nnumber, initially used by the peer over the first pair of `SocketAddr`s,\nis now reused over the second pair of `SocketAddr`s.",
+        "PeerMigrated": "The connection observed that the peer migrated over the network path\ndenoted by the pair of `SocketAddr`, i.e., non-probing packets have been\nreceived on this network path. This is a server side only event.\n\nNote that this event is only raised if the path has been validated.",
+        "PmtuUpdated": "The validated PMTU available for normal application traffic changed on\nthe network path between `local` and `peer`.\n\nThis event is generated only while PMTUD is enabled. It reports the\nlargest successfully probed size, falling back to QUIC's minimum packet\nsize while no larger size is validated. Unvalidated probe sizes and the\ninitial minimum set when the path is created are not reported."
+      }
+    },
+    "path.Path": {
+      "text": "A network path on which QUIC packets can be sent.",
+      "source": "path.rs",
+      "line": 151,
+      "fields": {
+        "local_addr": "The local address.",
+        "peer_addr": "The remote address.",
+        "active_scid_seq": "Source CID sequence number used over that path.",
+        "active_dcid_seq": "Destination CID sequence number used over that path.",
+        "state": "The current validation state of the path.",
+        "active": "Is this path used to send non-probing packets.",
+        "recovery": "Loss recovery and congestion control state.",
+        "pmtud": "Path MTU discovery state. None if PMTUD is disabled on the path.",
+        "in_flight_challenges": "Pending challenge data with the size of the packet containing them and\nwhen they were sent.",
+        "max_challenge_size": "The maximum challenge size that got acknowledged.",
+        "probing_lost": "Number of consecutive (spaced by at least 1 RTT) probing packets lost.",
+        "last_probe_lost_time": "Last instant when a probing packet got lost.",
+        "received_challenges": "Received challenge data.",
+        "received_challenges_max_len": "Max length of received challenges queue.",
+        "sent_count": "Number of packets sent on this path.",
+        "recv_count": "Number of packets received on this path.",
+        "retrans_count": "Total number of packets sent with data retransmitted from this path.",
+        "total_pto_count": "Total number of times PTO (probe timeout) fired.\n\nLoss usually happens in a burst so the number of packets lost will\ndepend on the volume of inflight packets at the time of loss (which\ncan be arbitrary). PTO count measures the number of loss events and\nprovides a normalized loss metric.",
+        "dgram_sent_count": "Number of DATAGRAM frames sent on this path.",
+        "dgram_lost_count": "Number of DATAGRAM frames marked lost on this path.",
+        "dgram_recv_count": "Number of DATAGRAM frames received on this path.",
+        "sent_bytes": "Total number of sent bytes over this path.",
+        "recv_bytes": "Total number of bytes received over this path.",
+        "stream_retrans_bytes": "Total number of bytes retransmitted from this path.\nThis counts only STREAM and CRYPTO data.",
+        "max_send_bytes": "Total number of bytes the server can send before the peer's address\nis verified.",
+        "verified_peer_address": "Whether the peer's address has been verified.",
+        "peer_verified_local_address": "Whether the peer has verified our address.",
+        "challenge_requested": "Does it requires sending PATH_CHALLENGE?",
+        "failure_notified": "Whether the failure of this path was notified.",
+        "migrating": "Whether the connection tries to migrate to this path, but it still needs\nto be validated.",
+        "needs_ack_eliciting": "Whether or not we should force eliciting of an ACK (e.g. via PING frame)"
+      }
+    },
+    "path.SocketAddrIter": {
+      "text": "An iterator over SocketAddr.",
+      "source": "path.rs",
+      "line": 620,
+      "fields": {}
+    },
+    "path.PathMap": {
+      "text": "All path-related information.",
+      "source": "path.rs",
+      "line": 645,
+      "fields": {
+        "paths": "The paths of the connection. Each of them has an internal identifier\nthat is used by `addrs_to_paths` and `ConnectionEntry`.",
+        "max_concurrent_paths": "The maximum number of concurrent paths allowed.",
+        "addrs_to_paths": "The mapping from the (local `SocketAddr`, peer `SocketAddr`) to the\n`Path` structure identifier.",
+        "events": "Path-specific events to be notified to the application.",
+        "is_server": "Whether this manager serves a connection as a server."
+      }
+    },
+    "path.PathStats": {
+      "text": "Statistics about the path of a connection.\n\nA connection\u2019s path statistics can be collected using the [`path_stats()`]\nmethod.\n\n[`path_stats()`]: struct.Connection.html#method.path_stats",
+      "source": "path.rs",
+      "line": 983,
+      "fields": {
+        "local_addr": "The local address of the path.",
+        "peer_addr": "The peer address of the path.",
+        "validation_state": "The path validation state.",
+        "active": "Whether the path is marked as active.",
+        "recv": "The number of QUIC packets received.",
+        "sent": "The number of QUIC packets sent.",
+        "lost": "The number of QUIC packets that were lost.",
+        "retrans": "The number of sent QUIC packets with retransmitted data.",
+        "total_pto_count": "The number of times PTO (probe timeout) fired.\n\nLoss usually happens in a burst so the number of packets lost will\ndepend on the volume of inflight packets at the time of loss (which\ncan be arbitrary). PTO count measures the number of loss events and\nprovides a normalized loss metric.",
+        "dgram_recv": "The number of DATAGRAM frames received.",
+        "dgram_sent": "The number of DATAGRAM frames sent.",
+        "dgram_lost": "The number of DATAGRAM frames lost.",
+        "rtt": "The estimated round-trip time of the connection.",
+        "min_rtt": "The minimum round-trip time observed.",
+        "max_rtt": "The maximum round-trip time observed.",
+        "rttvar": "The estimated round-trip time variation in samples using a mean\nvariation.",
+        "cwnd": "The size of the connection's congestion window in bytes.",
+        "sent_bytes": "The number of sent bytes.",
+        "recv_bytes": "The number of received bytes.",
+        "lost_bytes": "The number of bytes lost.",
+        "stream_retrans_bytes": "The number of stream bytes retransmitted.",
+        "pmtu": "The current PMTU for the connection.",
+        "delivery_rate": "The most recent data delivery rate estimate in bytes/s.\n\nNote that this value could be inaccurate if the application does not\nrespect pacing hints (see [`SendInfo.at`] and [Pacing] for more\ndetails).\n\n[`SendInfo.at`]: struct.SendInfo.html#structfield.at\n[Pacing]: index.html#pacing",
+        "max_bandwidth": "The maximum bandwidth estimate for the connection in bytes/s.\n\nNote: not all congestion control algorithms provide this metric;\nit is currently only implemented for bbr2_gcongestion.",
+        "rtt_persistent_jump_count": "The total number of confirmed persistent RTT jump episodes.",
+        "startup_exit": "Statistics from when a CCA first exited the startup phase."
+      }
+    },
+    "error.Error": {
+      "text": "A QUIC error.",
+      "source": "error.rs",
+      "line": 35,
+      "variants": {
+        "Done": "There is no more work to do.",
+        "BufferTooShort": "The provided buffer is too short.",
+        "UnknownVersion": "The provided packet cannot be parsed because its version is unknown.",
+        "InvalidFrame": "The provided packet cannot be parsed because it contains an invalid\nframe.",
+        "InvalidPacket": "The provided packet cannot be parsed.",
+        "InvalidState": "The operation cannot be completed because the connection is in an\ninvalid state.",
+        "InvalidStreamState": "The operation cannot be completed because the stream is in an\ninvalid state.\n\nThe stream ID is provided as associated data.",
+        "InvalidTransportParam": "The peer's transport params cannot be parsed.",
+        "CryptoFail": "A cryptographic operation failed.",
+        "TlsFail": "The TLS handshake failed.",
+        "FlowControl": "The peer violated the local flow control limits.",
+        "StreamLimit": "The peer violated the local stream limits.",
+        "StreamStopped": "The specified stream was stopped by the peer.\n\nThe error code sent as part of the `STOP_SENDING` frame is provided as\nassociated data.",
+        "StreamReset": "The specified stream was reset by the peer.\n\nThe error code sent as part of the `RESET_STREAM` frame is provided as\nassociated data.",
+        "FinalSize": "The received data exceeds the stream's final size.",
+        "CongestionControl": "Error in congestion control.",
+        "IdLimit": "Too many identifiers were provided.",
+        "OutOfIdentifiers": "Not enough available identifiers.",
+        "KeyUpdate": "Error in key update.",
+        "CryptoBufferExceeded": "The peer sent more data in CRYPTO frames than we can buffer.",
+        "InvalidAckRange": "The peer sent an ACK frame with an invalid range.",
+        "OptimisticAckDetected": "The peer send an ACK frame for a skipped packet used for Optimistic ACK\nmitigation.",
+        "InvalidDcidInitialization": "An invalid DCID was used when connecting to a remote peer."
+      }
+    },
+    "error.WireErrorCode": {
+      "text": "QUIC error codes sent on the wire.\n\nAs defined in [RFC9000](https://www.rfc-editor.org/rfc/rfc9000.html#name-error-codes).",
+      "source": "error.rs",
+      "line": 120,
+      "variants": {
+        "NoError": "An endpoint uses this with CONNECTION_CLOSE to signal that the\nconnection is being closed abruptly in the absence of any error.",
+        "InternalError": "The endpoint encountered an internal error and cannot continue with the\nconnection.",
+        "ConnectionRefused": "The server refused to accept a new connection.",
+        "FlowControlError": "An endpoint received more data than it permitted in its advertised data\nlimits; see Section 4.",
+        "StreamLimitError": "An endpoint received a frame for a stream identifier that exceeded its\nadvertised stream limit for the corresponding stream type.",
+        "StreamStateError": "An endpoint received a frame for a stream that was not in a state that\npermitted that frame.",
+        "FinalSizeError": "(1) An endpoint received a STREAM frame containing data that exceeded\nthe previously established final size, (2) an endpoint received a\nSTREAM frame or a RESET_STREAM frame containing a final size that\nwas lower than the size of stream data that was already received, or\n(3) an endpoint received a STREAM frame or a RESET_STREAM frame\ncontaining a different final size to the one already established.",
+        "FrameEncodingError": "An endpoint received a frame that was badly formatted -- for instance, a\nframe of an unknown type or an ACK frame that has more\nacknowledgment ranges than the remainder of the packet could carry.",
+        "TransportParameterError": "An endpoint received transport parameters that were badly formatted,\nincluded an invalid value, omitted a mandatory transport parameter,\nincluded a forbidden transport parameter, or were otherwise in\nerror.",
+        "ConnectionIdLimitError": "The number of connection IDs provided by the peer exceeds the advertised\nactive_connection_id_limit.",
+        "ProtocolViolation": "An endpoint detected an error with protocol compliance that was not\ncovered by more specific error codes.",
+        "InvalidToken": "A server received a client Initial that contained an invalid Token\nfield.",
+        "ApplicationError": "The application or application protocol caused the connection to be\nclosed.",
+        "CryptoBufferExceeded": "An endpoint has received more data in CRYPTO frames than it can buffer.",
+        "KeyUpdateError": "An endpoint detected errors in performing key updates.",
+        "AeadLimitReached": "An endpoint has reached the confidentiality or integrity limit for the\nAEAD algorithm used by the given connection.",
+        "NoViablePath": "An endpoint has determined that the network path is incapable of\nsupporting QUIC. An endpoint is unlikely to receive a\nCONNECTION_CLOSE frame carrying this code except when the path does\nnot support a large enough MTU."
+      }
+    },
+    "error.ConnectionError": {
+      "text": "Represents information carried by `CONNECTION_CLOSE` frames.",
+      "source": "error.rs",
+      "line": 252,
+      "fields": {
+        "is_app": "Whether the error came from the application or the transport layer.",
+        "error_code": "The error code carried by the `CONNECTION_CLOSE` frame.",
+        "reason": "The reason carried by the `CONNECTION_CLOSE` frame."
+      }
+    },
+    "recovery.CongestionControlAlgorithm": {
+      "text": "Available congestion control algorithms.\n\nThis enum provides currently available list of congestion control\nalgorithms.\n\nThe `congestion_window_unchecked_available` Cargo feature adds a variant to\nthis enum. Cargo can enable it through another dependency, so exhaustive\nmatches must account for the feature-enabled enum.",
+      "source": "recovery/mod.rs",
+      "line": 379,
+      "variants": {
+        "Reno": "Reno congestion control algorithm. `reno` in a string form.",
+        "CUBIC": "CUBIC congestion control algorithm (default). `cubic` in a string form.",
+        "Bbr2Gcongestion": "BBRv2 congestion control algorithm implementation from gcongestion\nbranch. `bbr2_gcongestion` in a string form."
+      }
+    },
+    "recovery.ReleaseTime": {
+      "text": "When the pacer thinks is a good time to release the next packet",
+      "source": "recovery/mod.rs",
+      "line": 757,
+      "variants": {}
+    },
+    "recovery.ReleaseDecision": {
+      "text": "When the next packet should be release and if it can be part of a burst",
+      "source": "recovery/mod.rs",
+      "line": 764,
+      "fields": {}
+    },
+    "recovery.RecoveryStats": {
+      "text": "Recovery statistics",
+      "source": "recovery/mod.rs",
+      "line": 822,
+      "fields": {}
+    },
+    "recovery.StartupExit": {
+      "text": "Statistics from when a CCA first exited the startup phase.",
+      "source": "recovery/mod.rs",
+      "line": 837,
+      "fields": {
+        "cwnd": "The congestion_window recorded at Startup exit.",
+        "bandwidth": "The bandwidth estimate recorded at Startup exit.",
+        "reason": "The reason a CCA exited the startup phase."
+      }
+    },
+    "recovery.StartupExitReason": {
+      "text": "The reason a CCA exited the startup phase.",
+      "source": "recovery/mod.rs",
+      "line": 863,
+      "variants": {
+        "Loss": "Exit slow start or BBR startup due to excessive loss",
+        "BandwidthPlateau": "Exit BBR startup due to bandwidth plateau.",
+        "PersistentQueue": "Exit BBR startup due to persistent queue.",
+        "ConservativeSlowStartRounds": "Exit HyStart++ conservative slow start after the max rounds allowed."
+      }
+    },
+    "params.UnknownTransportParameter": {
+      "text": "QUIC Unknown Transport Parameter.\n\nA QUIC transport parameter that is not specifically recognized\nby this implementation.",
+      "source": "transport_params.rs",
+      "line": 49,
+      "fields": {
+        "id": "The ID of the unknown transport parameter.",
+        "value": "Original data representing the value of the unknown transport parameter."
+      }
+    },
+    "params.UnknownTransportParameters": {
+      "text": "Track unknown transport parameters, up to a limit.",
+      "source": "transport_params.rs",
+      "line": 101,
+      "fields": {
+        "capacity": "The space remaining for storing unknown transport parameters.",
+        "parameters": "The unknown transport parameters."
+      }
+    },
+    "params.UnknownTransportParameterIterator": {
+      "text": "An Iterator over unknown transport parameters.",
+      "source": "transport_params.rs",
+      "line": 125,
+      "fields": {}
+    },
+    "params.TransportParams": {
+      "text": "QUIC Transport Parameters",
+      "source": "transport_params.rs",
+      "line": 153,
+      "fields": {
+        "original_destination_connection_id": "Value of Destination CID field from first Initial packet sent by client",
+        "max_idle_timeout": "The maximum idle timeout.",
+        "stateless_reset_token": "Token used for verifying stateless resets",
+        "max_udp_payload_size": "The maximum UDP payload size.",
+        "initial_max_data": "The initial flow control maximum data for the connection.",
+        "initial_max_stream_data_bidi_local": "The initial flow control maximum data for local bidirectional streams.",
+        "initial_max_stream_data_bidi_remote": "The initial flow control maximum data for remote bidirectional streams.",
+        "initial_max_stream_data_uni": "The initial flow control maximum data for unidirectional streams.",
+        "initial_max_streams_bidi": "The initial maximum bidirectional streams.",
+        "initial_max_streams_uni": "The initial maximum unidirectional streams.",
+        "ack_delay_exponent": "The ACK delay exponent.",
+        "max_ack_delay": "The max ACK delay.",
+        "disable_active_migration": "Whether active migration is disabled.",
+        "active_conn_id_limit": "The active connection ID limit.",
+        "initial_source_connection_id": "The value that the endpoint included in the Source CID field of a Retry\nPacket.",
+        "retry_source_connection_id": "The value that the server included in the Source CID field of a Retry\nPacket.",
+        "max_datagram_frame_size": "DATAGRAM frame extension parameter, if any.",
+        "unknown_params": "Unknown peer transport parameters and values, if any."
+      }
+    }
+  },
+  "functions": {
+    "lib.has_pending_stream_blocked_frame": {
+      "text": "Returns true if there is a STREAMS_BLOCKED frame that needs sending.",
+      "source": "lib.rs",
+      "line": 1359
+    },
+    "lib.update_at": {
+      "text": "Update the stream blocked limit.",
+      "source": "lib.rs",
+      "line": 1364
+    },
+    "lib.force_retransmit_sent_limit_eq": {
+      "text": "Clear blocked_sent to force retransmission of the most recently sent\nSTREAMS_BLOCKED frame.",
+      "source": "lib.rs",
+      "line": 1369
+    },
+    "lib.accept": {
+      "text": "Creates a new server-side connection.\n\nThe `scid` parameter represents the server's source connection ID, while\nthe optional `odcid` parameter represents the original destination ID the\nclient sent before a Retry packet (this is only required when using the\n[`retry()`] function). See also the [`accept_with_retry()`] function for\nmore advanced retry cases.\n\n[`retry()`]: fn.retry.html\n\n## Examples:\n\n```no_run\n# let mut config = quiche::Config::new(0xbabababa)?;\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let local = \"127.0.0.1:0\".parse().unwrap();\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\nlet conn = quiche::accept(&scid, None, local, peer, &mut config)?;\n# Ok::<(), quiche::Error>(())\n```",
+      "source": "lib.rs",
+      "line": 1669
+    },
+    "lib.accept_with_buf_factory": {
+      "text": "Creates a server-side connection with custom buffer generation.\n\nThe buffers generated can be anything that can be dereferenced as a byte\nslice. See [`accept`] and [`BufFactory`] for more information.",
+      "source": "lib.rs",
+      "line": 1697
+    },
+    "lib.accept_with_retry": {
+      "text": "Creates a new server-side connection after the client responded to a Retry\npacket.\n\nTo generate a Retry packet in the first place, use the [`retry()`] function.\n\nThe `scid` parameter represents the server's source connection ID, which can\nbe freshly generated after the application has successfully verified the\nRetry. `retry_cids` is used to tie the new connection to the Initial + Retry\nexchange that preceded the connection's creation.\n\nThe DCID of the client's Initial packet is inherently untrusted data. It is\nsafe to use the DCID in the `retry_source_cid` field of the\n`RetryConnectionIds` provided to this function. However, using the Initial's\nDCID for the `scid` parameter carries risks. Applications are advised to\nimplement their own DCID validation steps before using the DCID in that\nmanner.",
+      "source": "lib.rs",
+      "line": 1726
+    },
+    "lib.connect": {
+      "text": "Creates a new client-side connection.\n\nThe `scid` parameter is used as the connection's source connection ID,\nwhile the optional `server_name` parameter is used to verify the peer's\ncertificate.\n\n## Examples:\n\n```no_run\n# let mut config = quiche::Config::new(0xbabababa)?;\n# let server_name = \"quic.tech\";\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let local = \"127.0.0.1:4321\".parse().unwrap();\n# let peer = \"127.0.0.1:1234\".parse().unwrap();\nlet conn =\n    quiche::connect(Some(&server_name), &scid, local, peer, &mut config)?;\n# Ok::<(), quiche::Error>(())\n```",
+      "source": "lib.rs",
+      "line": 1750
+    },
+    "lib.connect_with_dcid": {
+      "text": "Creates a new client-side connection using the given DCID initially.\n\nBe aware that [RFC 9000] places requirements for unpredictability and length\non the client DCID field. This function is dangerous if these  requirements\nare not satisfied.\n\nThe `scid` parameter is used as the connection's source connection ID, while\nthe optional `server_name` parameter is used to verify the peer's\ncertificate.\n\n[RFC 9000]: <https://datatracker.ietf.org/doc/html/rfc9000#section-7.2-3>",
+      "source": "lib.rs",
+      "line": 1782
+    },
+    "lib.connect_with_buffer_factory": {
+      "text": "Creates a new client-side connection, with a custom buffer generation\nmethod.\n\nThe buffers generated can be anything that can be drereferenced as a byte\nslice. See [`connect`] and [`BufFactory`] for more info.",
+      "source": "lib.rs",
+      "line": 1809
+    },
+    "lib.connect_with_dcid_and_buffer_factory": {
+      "text": "Creates a new client-side connection, with a custom buffer generation\nmethod using the given dcid initially.\nBe aware the RFC places requirements for unpredictability and length\non the client DCID field.\n[`RFC9000`]:  https://datatracker.ietf.org/doc/html/rfc9000#section-7.2-3\n\nThe buffers generated can be anything that can be drereferenced as a byte\nslice. See [`connect`] and [`BufFactory`] for more info.",
+      "source": "lib.rs",
+      "line": 1828
+    },
+    "lib.negotiate_version": {
+      "text": "Writes a version negotiation packet.\n\nThe `scid` and `dcid` parameters are the source connection ID and the\ndestination connection ID extracted from the received client's Initial\npacket that advertises an unsupported version.\n\n## Examples:\n\n```no_run\n# let mut buf = [0; 512];\n# let mut out = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\nlet (len, src) = socket.recv_from(&mut buf).unwrap();\n\nlet hdr =\n    quiche::Header::from_slice(&mut buf[..len], quiche::MAX_CONN_ID_LEN)?;\n\nif hdr.version != quiche::PROTOCOL_VERSION {\n    let len = quiche::negotiate_version(&hdr.scid, &hdr.dcid, &mut out)?;\n    socket.send_to(&out[..len], &src).unwrap();\n}\n# Ok::<(), quiche::Error>(())\n```",
+      "source": "lib.rs",
+      "line": 1852
+    },
+    "lib.retry": {
+      "text": "Writes a stateless retry packet.\n\nThe `scid` and `dcid` parameters are the source connection ID and the\ndestination connection ID extracted from the received client's Initial\npacket, while `new_scid` is the server's new source connection ID and\n`token` is the address validation token the client needs to echo back.\n\nThe application is responsible for generating the address validation\ntoken to be sent to the client, and verifying tokens sent back by the\nclient. The generated token should include the `dcid` parameter, such\nthat it can be later extracted from the token and passed to the\n[`accept()`] function as its `odcid` parameter.\n\n[`accept()`]: fn.accept.html\n\n## Examples:\n\n```no_run\n# let mut config = quiche::Config::new(0xbabababa)?;\n# let mut buf = [0; 512];\n# let mut out = [0; 512];\n# let scid = quiche::ConnectionId::from_ref(&[0xba; 16]);\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\n# let local = socket.local_addr().unwrap();\n# fn mint_token(hdr: &quiche::Header, src: &std::net::SocketAddr) -> Vec<u8> {\n#     vec![]\n# }\n# fn validate_token<'a>(src: &std::net::SocketAddr, token: &'a [u8]) -> Option<quiche::ConnectionId<'a>> {\n#     None\n# }\nlet (len, peer) = socket.recv_from(&mut buf).unwrap();\n\nlet hdr = quiche::Header::from_slice(&mut buf[..len], quiche::MAX_CONN_ID_LEN)?;\n\nlet token = hdr.token.as_ref().unwrap();\n\n// No token sent by client, create a new one.\nif token.is_empty() {\n    let new_token = mint_token(&hdr, &peer);\n\n    let len = quiche::retry(\n        &hdr.scid, &hdr.dcid, &scid, &new_token, hdr.version, &mut out,\n    )?;\n\n    socket.send_to(&out[..len], &peer).unwrap();\n    return Ok(());\n}\n\n// Client sent token, validate it.\nlet odcid = validate_token(&peer, token);\n\nif odcid.is_none() {\n    // Invalid address validation token.\n    return Ok(());\n}\n\nlet conn = quiche::accept(&scid, odcid.as_ref(), local, peer, &mut config)?;\n# Ok::<(), quiche::Error>(())\n```",
+      "source": "lib.rs",
+      "line": 1882
+    },
+    "lib.version_is_supported": {
+      "text": "Returns true if the given protocol version is supported.",
+      "source": "lib.rs",
+      "line": 1949
+    },
+    "lib.drop_pkt_on_err": {
+      "text": "Maps an `Error` to `Error::Done`, or itself.\n\nWhen a received packet that hasn't yet been authenticated triggers a failure\nit should, in most cases, be ignored, instead of raising a connection error,\nto avoid potential man-in-the-middle and man-on-the-side attacks.\n\nHowever, if no other packet was previously received, the connection should\nindeed be closed as the received packet might just be network background\nnoise, and it shouldn't keep resources occupied indefinitely.\n\nThis function maps an error to `Error::Done` to ignore a packet failure\nwithout aborting the connection, except when no other packet was previously\nreceived, in which case the error itself is returned, but only on the\nserver-side as the client will already have armed the idle timer.\n\nThis must only be used for errors preceding packet authentication. Failures\nhappening after a packet has been authenticated should still cause the\nconnection to be aborted.",
+      "source": "lib.rs",
+      "line": 9578
+    },
+    "h3.name": {
+      "text": "Returns the object's name.",
+      "source": "h3/mod.rs",
+      "line": 717
+    },
+    "h3.value": {
+      "text": "Returns the object's value.",
+      "source": "h3/mod.rs",
+      "line": 720
+    },
+    "h3.new": {
+      "text": "Creates a new Priority.",
+      "source": "h3/mod.rs",
+      "line": 875
+    },
+    "h3.try_from": {
+      "text": "Try to parse an Extensible Priority field value.\n\nThe field value is expected to be a Structured Fields Dictionary; see\n[Extensible Priorities].\n\nIf the `u` or `i` fields are contained with correct types, a constructed\nPriority object is returned. Note that urgency values outside of valid\nrange (0 through 7) are clamped to 7.\n\nIf the `u` or `i` fields are contained with the wrong types,\nError::Done is returned.\n\nOmitted parameters will yield default values.\n\n[Extensible Priorities]: https://www.rfc-editor.org/rfc/rfc9218.html#section-4.",
+      "source": "h3/mod.rs",
+      "line": 889
+    },
+    "h3.grease_value": {
+      "text": "Generates an HTTP/3 GREASE variable length integer.",
+      "source": "h3/mod.rs",
+      "line": 3405
+    },
+    "h3.handshake": {
+      "text": "Do the HTTP/3 handshake so both ends are in sane initial state.",
+      "source": "h3/mod.rs",
+      "line": 3505
+    },
+    "h3.advance": {
+      "text": "Advances the session pipe over the buffer.",
+      "source": "h3/mod.rs",
+      "line": 3556
+    },
+    "h3.poll_client": {
+      "text": "Polls the client for events.",
+      "source": "h3/mod.rs",
+      "line": 3561
+    },
+    "h3.poll_server": {
+      "text": "Polls the server for events.",
+      "source": "h3/mod.rs",
+      "line": 3566
+    },
+    "h3.send_request": {
+      "text": "Sends a request from client with default headers.\n\nOn success it returns the newly allocated stream and the headers.",
+      "source": "h3/mod.rs",
+      "line": 3571
+    },
+    "h3.send_response": {
+      "text": "Sends a response from server with default headers.\n\nOn success it returns the headers.",
+      "source": "h3/mod.rs",
+      "line": 3591
+    },
+    "h3.send_body_client": {
+      "text": "Sends some default payload from client.\n\nOn success it returns the payload.",
+      "source": "h3/mod.rs",
+      "line": 3614
+    },
+    "h3.recv_body_client": {
+      "text": "Fetches DATA payload from the server.\n\nOn success it returns the number of bytes received.",
+      "source": "h3/mod.rs",
+      "line": 3630
+    },
+    "h3.recv_body_buf_client": {
+      "text": "Fetches DATA payload from the server.\n\nOn success it returns the number of bytes received.",
+      "source": "h3/mod.rs",
+      "line": 3639
+    },
+    "h3.send_body_server": {
+      "text": "Sends some default payload from server.\n\nOn success it returns the payload.",
+      "source": "h3/mod.rs",
+      "line": 3649
+    },
+    "h3.recv_body_server": {
+      "text": "Fetches DATA payload from the client.\n\nOn success it returns the number of bytes received.",
+      "source": "h3/mod.rs",
+      "line": 3665
+    },
+    "h3.recv_body_buf_server": {
+      "text": "Fetches DATA payload from the client.\n\nOn success it returns the number of bytes received.",
+      "source": "h3/mod.rs",
+      "line": 3674
+    },
+    "h3.send_frame_client": {
+      "text": "Sends a single HTTP/3 frame from the client.",
+      "source": "h3/mod.rs",
+      "line": 3684
+    },
+    "h3.send_dgram_client": {
+      "text": "Send an HTTP/3 DATAGRAM with default data from the client.\n\nOn success it returns the data.",
+      "source": "h3/mod.rs",
+      "line": 3702
+    },
+    "h3.recv_dgram_client": {
+      "text": "Receives an HTTP/3 DATAGRAM from the server.\n\nOn success it returns the DATAGRAM length, flow ID and flow ID\nlength.",
+      "source": "h3/mod.rs",
+      "line": 3721
+    },
+    "h3.send_dgram_server": {
+      "text": "Send an HTTP/3 DATAGRAM with default data from the server\n\nOn success it returns the data.",
+      "source": "h3/mod.rs",
+      "line": 3735
+    },
+    "h3.recv_dgram_server": {
+      "text": "Receives an HTTP/3 DATAGRAM from the client.\n\nOn success it returns the DATAGRAM length, flow ID and flow ID\nlength.",
+      "source": "h3/mod.rs",
+      "line": 3754
+    },
+    "h3.send_frame_server": {
+      "text": "Sends a single HTTP/3 frame from the server.",
+      "source": "h3/mod.rs",
+      "line": 3768
+    },
+    "h3.send_arbitrary_stream_data_client": {
+      "text": "Sends an arbitrary buffer of HTTP/3 stream data from the client.",
+      "source": "h3/mod.rs",
+      "line": 3786
+    },
+    "h3.send_arbitrary_stream_data_server": {
+      "text": "Sends an arbitrary buffer of HTTP/3 stream data from the server.",
+      "source": "h3/mod.rs",
+      "line": 3797
+    },
+    "packet.epochs": {
+      "text": "Returns an ordered slice containing the `Epoch`s that fit in the\nprovided `range`.",
+      "source": "packet.rs",
+      "line": 76
+    },
+    "packet.from_vec": {
+      "text": "Creates a new connection ID from the given vector.",
+      "source": "packet.rs",
+      "line": 194
+    },
+    "packet.from_ref": {
+      "text": "Creates a new connection ID from the given slice.",
+      "source": "packet.rs",
+      "line": 200
+    },
+    "packet.into_owned": {
+      "text": "Returns a new owning connection ID from the given existing one.",
+      "source": "packet.rs",
+      "line": 206
+    },
+    "packet.from_slice": {
+      "text": "Parses a QUIC packet header from the given buffer.\n\nThe `dcid_len` parameter is the length of the destination connection ID,\nrequired to parse short header packets.\n\n## Examples:\n\n```no_run\n# const LOCAL_CONN_ID_LEN: usize = 16;\n# let mut buf = [0; 512];\n# let mut out = [0; 512];\n# let socket = std::net::UdpSocket::bind(\"127.0.0.1:0\").unwrap();\nlet (len, src) = socket.recv_from(&mut buf).unwrap();\n\nlet hdr = quiche::Header::from_slice(&mut buf[..len], LOCAL_CONN_ID_LEN)?;\n# Ok::<(), quiche::Error>(())\n```",
+      "source": "packet.rs",
+      "line": 330
+    },
+    "packet.is_long": {
+      "text": "Returns true if the packet has a long header.\n\nThe `b` parameter represents the first byte of the QUIC header.",
+      "source": "packet.rs",
+      "line": 528
+    },
+    "path.new": {
+      "text": "Creates a new `PathMap` with the initial provided `path` and a\ncapacity limit.",
+      "source": "path.rs",
+      "line": 666
+    },
+    "path.local_addr": {
+      "text": "Returns the local address on which this path operates.",
+      "source": "path.rs",
+      "line": 327
+    },
+    "path.peer_addr": {
+      "text": "Returns the peer address on which this path operates.",
+      "source": "path.rs",
+      "line": 333
+    },
+    "path.working": {
+      "text": "Returns whether the path is working (i.e., not failed).",
+      "source": "path.rs",
+      "line": 339
+    },
+    "path.active": {
+      "text": "Returns whether the path is active.",
+      "source": "path.rs",
+      "line": 345
+    },
+    "path.usable": {
+      "text": "Returns whether the path can be used to send non-probing packets.",
+      "source": "path.rs",
+      "line": 351
+    },
+    "path.unused": {
+      "text": "Returns whether the path is unused.",
+      "source": "path.rs",
+      "line": 359
+    },
+    "path.probing_required": {
+      "text": "Returns whether the path requires sending a probing packet.",
+      "source": "path.rs",
+      "line": 366
+    },
+    "path.promote_to": {
+      "text": "Promotes the path to the provided state only if the new state is greater\nthan the current one.",
+      "source": "path.rs",
+      "line": 372
+    },
+    "path.validated": {
+      "text": "Returns whether the path is validated.",
+      "source": "path.rs",
+      "line": 380
+    },
+    "path.validation_failed": {
+      "text": "Returns whether this path failed its validation.",
+      "source": "path.rs",
+      "line": 386
+    },
+    "path.request_validation": {
+      "text": "Requests path validation.",
+      "source": "path.rs",
+      "line": 398
+    },
+    "path.validation_requested": {
+      "text": "Returns whether a validation is requested.",
+      "source": "path.rs",
+      "line": 404
+    },
+    "path.add_challenge_sent": {
+      "text": "Handles the sending of PATH_CHALLENGE.",
+      "source": "path.rs",
+      "line": 431
+    },
+    "path.on_response_received": {
+      "text": "Handles incoming PATH_RESPONSE data.",
+      "source": "path.rs",
+      "line": 878
+    },
+    "path.can_reinit_recovery": {
+      "text": "Returns true if the path's recovery module hasn't processed any non-ACK\npackets, and it is still OK to fully reinitialize the recovery module to\npickup changes to congestion control config.",
+      "source": "path.rs",
+      "line": 557
+    },
+    "path.get": {
+      "text": "Gets an immutable reference to the path identified by `path_id`. If the\nprovided `path_id` does not identify any current `Path`, returns an\n[`InvalidState`].\n\n[`InvalidState`]: enum.Error.html#variant.InvalidState",
+      "source": "path.rs",
+      "line": 693
+    },
+    "path.get_mut": {
+      "text": "Gets a mutable reference to the path identified by `path_id`. If the\nprovided `path_id` does not identify any current `Path`, returns an\n[`InvalidState`].\n\n[`InvalidState`]: enum.Error.html#variant.InvalidState",
+      "source": "path.rs",
+      "line": 703
+    },
+    "path.get_active_with_pid": {
+      "text": "Gets an immutable reference to the active path with the value of the\nlowest identifier. If there is no active path, returns `None`.",
+      "source": "path.rs",
+      "line": 714
+    },
+    "path.get_active": {
+      "text": "Gets an immutable reference to the active path with the lowest\nidentifier. If there is no active path, returns an [`InvalidState`].\n\n[`InvalidState`]: enum.Error.html#variant.InvalidState",
+      "source": "path.rs",
+      "line": 720
+    },
+    "path.get_active_path_id": {
+      "text": "Gets the lowest active path identifier. If there is no active path,\nreturns an [`InvalidState`].\n\n[`InvalidState`]: enum.Error.html#variant.InvalidState",
+      "source": "path.rs",
+      "line": 731
+    },
+    "path.get_active_mut": {
+      "text": "Gets an mutable reference to the active path with the lowest identifier.\nIf there is no active path, returns an [`InvalidState`].\n\n[`InvalidState`]: enum.Error.html#variant.InvalidState",
+      "source": "path.rs",
+      "line": 742
+    },
+    "path.iter": {
+      "text": "Returns an iterator over all existing paths.",
+      "source": "path.rs",
+      "line": 755
+    },
+    "path.iter_mut": {
+      "text": "Returns a mutable iterator over all existing paths.",
+      "source": "path.rs",
+      "line": 761
+    },
+    "path.iter_mut_and_events": {
+      "text": "Returns a mutable iterator over all existing paths and the path event\nqueue.",
+      "source": "path.rs",
+      "line": 767
+    },
+    "path.len": {
+      "text": "Returns the number of existing paths.",
+      "source": "path.rs",
+      "line": 776
+    },
+    "path.path_id_from_addrs": {
+      "text": "Returns the `Path` identifier related to the provided `addrs`.",
+      "source": "path.rs",
+      "line": 782
+    },
+    "path.make_room_for_new_path": {
+      "text": "Checks if creating a new path will not exceed the current `self.paths`\ncapacity. If yes, this method tries to remove one unused path. If it\nfails to do so, returns [`Done`].\n\n[`Done`]: enum.Error.html#variant.Done",
+      "source": "path.rs",
+      "line": 790
+    },
+    "path.insert_path": {
+      "text": "Records the provided `Path` and returns its assigned identifier.\n\nOn success, this method takes care of creating a notification to the\nserving application, if it serves a server-side connection.\n\nIf there are already `max_concurrent_paths` currently recorded, this\nmethod tries to remove an unused `Path` first. If it fails to do so,\nit returns [`Done`].\n\n[`Done`]: enum.Error.html#variant.Done",
+      "source": "path.rs",
+      "line": 815
+    },
+    "path.notify_event": {
+      "text": "Notifies a path event to the application served by the connection.",
+      "source": "path.rs",
+      "line": 842
+    },
+    "path.pop_event": {
+      "text": "Gets the first path event to be notified to the application.",
+      "source": "path.rs",
+      "line": 847
+    },
+    "path.notify_failed_validations": {
+      "text": "Notifies all failed validations to the application.",
+      "source": "path.rs",
+      "line": 852
+    },
+    "path.find_candidate_path": {
+      "text": "Finds a path candidate to be active and returns its identifier.",
+      "source": "path.rs",
+      "line": 869
+    },
+    "path.set_active_path": {
+      "text": "Sets the path with identifier 'path_id' to be active.\n\nThere can be exactly one active path on which non-probing packets can be\nsent. If another path is marked as active, it will be superseded by the\none having `path_id` as identifier.\n\nA server should always ensure that the active path is validated. If it\nis already the case, it notifies the application that the connection\nmigrated. Otherwise, it triggers a path validation and defers the\nnotification once it is actually validated.",
+      "source": "path.rs",
+      "line": 908
+    },
+    "path.set_discover_pmtu_on_existing_paths": {
+      "text": "Configures path MTU discovery on all existing paths.",
+      "source": "path.rs",
+      "line": 947
+    },
+    "recovery.should_elicit_ack": {
+      "text": "Returns whether or not we should elicit an ACK even if we wouldn't\notherwise have constructed an ACK eliciting packet.",
+      "source": "recovery/mod.rs",
+      "line": 205
+    },
+    "params.is_reserved": {
+      "text": "Checks whether an unknown Transport Parameter's ID is in the reserved\nspace.\n\nSee Section 18.1 in [RFC9000](https://datatracker.ietf.org/doc/html/rfc9000#name-reserved-transport-paramete).",
+      "source": "transport_params.rs",
+      "line": 63
+    },
+    "params.push": {
+      "text": "Pushes an unknown transport parameter into storage if there is space\nremaining.",
+      "source": "transport_params.rs",
+      "line": 111
+    },
+    "params.to_qlog": {
+      "text": "Creates a qlog event for connection transport parameters and TLS fields",
+      "source": "transport_params.rs",
+      "line": 566
+    }
+  }
+}

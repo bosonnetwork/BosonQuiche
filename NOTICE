@@ -1,0 +1,16 @@
+Boson Quiche
+Copyright (c) 2026 bosonnetwork.io
+Project-owned implementation source is licensed under the MIT License.
+
+Java API documentation includes adapted documentation from Cloudflare quiche
+0.30.1, including its Rust API documentation and public C header:
+https://github.com/cloudflare/quiche/tree/0.30.1
+
+Copyright (C) 2018-2019, Cloudflare, Inc.
+All rights reserved.
+
+The adapted upstream documentation and vendored header remain subject to the
+BSD-2-Clause notice in src/main/resources/META-INF/LICENSE-quiche (also included
+as META-INF/LICENSE-quiche in the binary JAR and in the JavaDoc doc-files).
+Java-specific descriptions explain the binding's buffers, exceptions, ownership
+and result conventions; Rust examples are available through upstream API links.
