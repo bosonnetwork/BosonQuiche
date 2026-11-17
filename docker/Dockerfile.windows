@@ -1,0 +1,59 @@
+# Copyright (c) 2026 bosonnetwork.io
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+FROM ubuntu@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
+
+ARG TARGETARCH
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl xz-utils python3 git patch build-essential \
+    clang-20=1:20.1.2-0ubuntu1~24.04.3 llvm-20=1:20.1.2-0ubuntu1~24.04.3 \
+    libclang-20-dev=1:20.1.2-0ubuntu1~24.04.3 lld-20=1:20.1.2-0ubuntu1~24.04.3 \
+    cmake=3.28.3-1build7 ninja-build=1.11.1-2 nasm=2.16.01-1build1 \
+    && dpkg-query -W > /opt/build-packages.txt \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo
+ENV PATH=/opt/cargo/bin:/usr/lib/llvm-20/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+RUN case "$TARGETARCH" in \
+      arm64) host=aarch64-unknown-linux-gnu; sha=e3853c5a252fca15252d07cb23a1bdd9377a8c6f3efa01531109281ae47f841c ;; \
+      amd64) host=x86_64-unknown-linux-gnu; sha=20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c ;; \
+      *) exit 1 ;; \
+    esac \
+    && curl -fsSL "https://static.rust-lang.org/rustup/archive/1.28.2/$host/rustup-init" -o /tmp/rustup-init \
+    && echo "$sha  /tmp/rustup-init" | sha256sum -c - \
+    && chmod +x /tmp/rustup-init \
+    && /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain 1.99.1 \
+    && rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc \
+    && rm /tmp/rustup-init
+
+RUN case "$TARGETARCH" in \
+      arm64) host=aarch64-unknown-linux-musl; sha=dc0a0fb28fdd90405f69e7365bce91d2504ea7491eb4d79d5655ffa106358925 ;; \
+      amd64) host=x86_64-unknown-linux-musl; sha=c492c6dfb7e5ac0eee586b796e0fc950ba13077e7f0bbb046f445d71790d5360 ;; \
+      *) exit 1 ;; \
+    esac \
+    && curl -fsSL "https://github.com/rust-cross/cargo-xwin/releases/download/v0.23.1/cargo-xwin-v0.23.1.$host.tar.gz" -o /tmp/xwin.tar.gz \
+    && echo "$sha  /tmp/xwin.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/xwin.tar.gz -C /opt/cargo/bin \
+    && rm /tmp/xwin.tar.gz
+
+ENV LIBCLANG_PATH=/usr/lib/llvm-20/lib
+RUN rustup component add llvm-tools
+WORKDIR /work

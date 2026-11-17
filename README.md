@@ -8,9 +8,10 @@ is optional for applications.
 ## Build
 
 Requirements: JDK 11+, Maven 3.6+, Python 3.9+, Rust 1.88+, C/C++ compiler,
-CMake and the host platform development tools. Native builds currently support
-macOS and Linux hosts. Only macOS arm64 has been validated so far. Windows and
-Android cross-builds are not provided by this initial project.
+CMake and the host platform development tools. The Maven JNI build supports
+macOS and Linux hosts, with integration tests validated on macOS arm64.
+Cross-platform static-library validation is available through the toolchains
+described below.
 
 ```sh
 mvn -s .mvn/settings.xml verify
@@ -42,6 +43,66 @@ it into a private temporary directory. An explicit library can be selected
 with `-Dboson.quiche.library=/absolute/path/to/libboson_quiche.dylib` (or `.so`).
 The native version must match 0.30.1. Native quiche/BoringSSL symbols are hidden
 to allow coexistence with other TLS implementations in the JVM.
+
+## Cross-platform native toolchains
+
+`scripts/prove_toolchains.py` builds and inspects quiche static archives for
+Linux amd64/arm64, macOS arm64, Android arm64 and Windows amd64/arm64. It uses
+the same quiche tag, checksum, Cargo lockfile and features as the Maven build.
+These checks validate static-library compilation and architecture. Windows
+checks also validate C-API linking and PE metadata; they do not execute the
+Windows binaries. The Maven JNI package is built separately as described above.
+
+Use an Apple Silicon Mac with a running Docker-compatible engine (OrbStack or
+Docker Desktop), Rust 1.99.1, the Rust `llvm-tools` component, Xcode tools and
+CMake. Docker recipes pin base-image digests and compiler/tool versions. The
+Linux images use AlmaLinux 8.10 and glibc 2.28. The Windows image runs Linux
+ARM64 and cross-compiles both MSVC targets with LLVM 20 and cargo-xwin 0.23.1.
+[native/toolchains.json](native/toolchains.json) pins the Windows SDK/CRT and
+Android NDK/API versions and is a required, version-controlled build input.
+
+Use the upstream source downloaded by the Maven build, or specify an existing
+checkout with `--source /absolute/path/to/quiche`. Create the build images and
+install the pinned Android NDK:
+
+```sh
+docker build --platform linux/arm64 -f docker/Dockerfile.windows \
+    -t boson-quiche-toolchain:windows-arm64 docker
+docker build --platform linux/arm64 -f docker/Dockerfile.linux \
+    -t boson-quiche-toolchain:linux-arm64 docker
+docker build --platform linux/amd64 -f docker/Dockerfile.linux \
+    -t boson-quiche-toolchain:linux-amd64 docker
+rustup component add llvm-tools
+rustup target add aarch64-linux-android
+python3 scripts/prove_toolchains.py --fetch-ndk
+python3 scripts/prove_toolchains.py --preflight
+```
+
+Build and validate a target by its platform ID:
+
+```sh
+python3 scripts/prove_toolchains.py --target windows-amd64
+python3 scripts/prove_toolchains.py --target windows-arm64
+```
+
+The other IDs are `linux-amd64`, `linux-arm64`, `macos-arm64` and
+`android-arm64`. Linux x64 runs under architecture translation on an ARM64 Mac.
+Outputs, SDKs and dependency caches are under `.build/`.
+`ANDROID_NDK_HOME` can select an existing NDK with the exact pinned revision.
+
+Each target's `proof.json` records the archive checksum, architecture, checked
+FFI symbols, native link libraries and compiler versions. Container reports
+also capture the image ID and OS package inventory. Inspection results and
+build logs are saved beside each report. Generate a consolidated report from
+all six target results:
+
+```sh
+python3 scripts/prove_toolchains.py --report > .build/toolchain-report.json
+```
+
+Report generation rechecks archive and lockfile hashes. Reports describe a
+particular build environment and belong with generated artifacts under the
+ignored `.build/` directory.
 
 ## Packet I/O and zero-copy at the JNI boundary
 

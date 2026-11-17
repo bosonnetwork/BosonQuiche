@@ -1,0 +1,49 @@
+# Copyright (c) 2026 bosonnetwork.io
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+FROM almalinux@sha256:768bedc30fe0a536adb0a65d2eddb7caad364e514fbddd0ae9e026975f590342
+
+ARG TARGETARCH
+RUN dnf install -y \
+    gcc-toolset-14-gcc-14.2.1-11.el8_10 gcc-toolset-14-gcc-c++-14.2.1-11.el8_10 \
+    clang-devel-22.1.8-2.module_el8.10.0+4359+f07421b9 \
+    llvm-22.1.8-2.module_el8.10.0+4359+f07421b9 cmake-3.26.5-2.el8 \
+    python39-3.9.25-2.module_el8.10.0+4083+53cad1fb \
+    make perl-core git patch curl xz \
+    && rpm -qa | sort > /opt/build-packages.txt \
+    && dnf clean all \
+    && ln -s /usr/bin/python3.9 /usr/local/bin/python3
+
+ENV RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo
+ENV PATH=/opt/cargo/bin:/opt/rh/gcc-toolset-14/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV CC=gcc CXX=g++ LIBCLANG_PATH=/usr/lib64
+RUN case "$TARGETARCH" in \
+      arm64) host=aarch64-unknown-linux-gnu; sha=e3853c5a252fca15252d07cb23a1bdd9377a8c6f3efa01531109281ae47f841c ;; \
+      amd64) host=x86_64-unknown-linux-gnu; sha=20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c ;; \
+      *) exit 1 ;; \
+    esac \
+    && curl -fsSL "https://static.rust-lang.org/rustup/archive/1.28.2/$host/rustup-init" -o /tmp/rustup-init \
+    && echo "$sha  /tmp/rustup-init" | sha256sum -c - \
+    && chmod +x /tmp/rustup-init \
+    && /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain 1.99.1 \
+    && rm /tmp/rustup-init
+
+RUN rustup component add llvm-tools
+WORKDIR /work
