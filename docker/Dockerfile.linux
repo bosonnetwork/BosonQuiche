@@ -46,4 +46,11 @@ RUN case "$TARGETARCH" in \
     && rm /tmp/rustup-init
 
 RUN rustup component add llvm-tools
+
+# Install the JDK's bundled Linux JNI headers. Record the resolved package
+# versions in the image inventory instead of pinning individual header bytes.
+RUN dnf install -y java-17-openjdk-devel \
+    && rpm -qa | sort > /opt/build-packages.txt \
+    && dnf clean all
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk
 WORKDIR /work

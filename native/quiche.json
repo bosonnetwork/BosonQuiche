@@ -1,0 +1,11 @@
+{
+  "tag": "0.30.1",
+  "archive_sha256": "c2c55d42677f0f1f42045e4c3e31469dc2107059bb519551b4c1c5a42f662a51",
+  "header_sha256": "f79a68f6f557875b7a501dcf22554b2fdedd2c630c8cbec282575e7a3114a09f",
+  "features": [
+    "ffi",
+    "qlog",
+    "gcongestion",
+    "sfv"
+  ]
+}

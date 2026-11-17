@@ -7,8 +7,8 @@ is optional for applications.
 
 ## Build
 
-Requirements: JDK 11+, Maven 3.6+, Python 3.9+, Rust 1.88+, C/C++ compiler,
-CMake and the host platform development tools. The Maven JNI build supports
+Requirements: JDK 11+, Maven 3.6+, Python 3.9+, Rust 1.99.1, C/C++ compiler,
+CMake 3.22+ and the host platform development tools. The Maven JNI build supports
 macOS and Linux hosts, with integration tests validated on macOS arm64.
 Cross-platform static-library validation is available through the toolchains
 described below.
@@ -19,7 +19,10 @@ mvn -s .mvn/settings.xml verify
 
 The first build downloads the upstream source pinned to release tag `0.30.1`
 from `https://github.com/cloudflare/quiche/archive/refs/tags/0.30.1.tar.gz`
-and verifies its SHA-256 checksum. Native dependencies are pinned by
+and verifies its SHA-256 checksum. [native/quiche.json](native/quiche.json)
+defines the upstream tag, source/header checksums and features. The builder
+checks agreement with Maven's `quiche.version` and the API documentation
+snapshot. Native dependencies are pinned by
 `native/Cargo.lock`; the `ffi`, `qlog`,
 `gcongestion` and `sfv` features are enabled. BoringSSL is built and linked
 with quiche. No system installation of quiche or BoringSSL is required.
@@ -30,14 +33,15 @@ To build against an existing checkout with the matching public header:
 mvn -s .mvn/settings.xml -Dquiche.source=/absolute/path/to/quiche verify
 ```
 
-Build products and Cargo caches are under `target/`; downloaded sources use
-`target/quiche-<tag>/` so changing tags selects a new source directory. The
-supplied checkout is not modified. `-Dnative.skip=true` reuses an already built
-native library.
+Sources, native build products and Cargo caches are under ignored `.build/`.
+Maven resources are copied into `target/generated-resources/`; `mvn clean`
+preserves the native inputs. A supplied checkout is not modified.
+`-Dnative.skip=true` validates and restores an existing host library without
+rebuilding it. Missing or stale inputs cause an error.
 This project intentionally manages its own dependency versions and has no
 parent POM or dependency on another Boson project.
 
-Coordinates: `io.bosonnetwork:boson-quiche:0.1.0-SNAPSHOT`. The host native
+Coordinates: `io.bosonnetwork:boson-quiche:0.30.1.1-SNAPSHOT`. The host native
 library is bundled under `native/<os>-<arch>/` in the JAR. The loader extracts
 it into a private temporary directory. An explicit library can be selected
 with `-Dboson.quiche.library=/absolute/path/to/libboson_quiche.dylib` (or `.so`).
@@ -46,7 +50,7 @@ to allow coexistence with other TLS implementations in the JVM.
 
 ## Cross-platform native toolchains
 
-`scripts/prove_toolchains.py` builds and inspects quiche static archives for
+`scripts/build_native.py` builds and inspects quiche static archives for
 Linux amd64/arm64, macOS arm64, Android arm64 and Windows amd64/arm64. It uses
 the same quiche tag, checksum, Cargo lockfile and features as the Maven build.
 These checks validate static-library compilation and architecture. Windows
@@ -61,9 +65,9 @@ ARM64 and cross-compiles both MSVC targets with LLVM 20 and cargo-xwin 0.23.1.
 [native/toolchains.json](native/toolchains.json) pins the Windows SDK/CRT and
 Android NDK/API versions and is a required, version-controlled build input.
 
-Use the upstream source downloaded by the Maven build, or specify an existing
-checkout with `--source /absolute/path/to/quiche`. Create the build images and
-install the pinned Android NDK:
+The builder downloads upstream sources automatically. An existing checkout can
+be selected with `--source /absolute/path/to/quiche`. Create the build images
+and install the pinned Android NDK:
 
 ```sh
 docker build --platform linux/arm64 -f docker/Dockerfile.windows \
@@ -74,15 +78,15 @@ docker build --platform linux/amd64 -f docker/Dockerfile.linux \
     -t boson-quiche-toolchain:linux-amd64 docker
 rustup component add llvm-tools
 rustup target add aarch64-linux-android
-python3 scripts/prove_toolchains.py --fetch-ndk
-python3 scripts/prove_toolchains.py --preflight
+python3 scripts/build_native.py --fetch-ndk
+python3 scripts/build_native.py --preflight
 ```
 
 Build and validate a target by its platform ID:
 
 ```sh
-python3 scripts/prove_toolchains.py --target windows-amd64
-python3 scripts/prove_toolchains.py --target windows-arm64
+python3 scripts/build_native.py --target windows-amd64 --stage archive
+python3 scripts/build_native.py --all --stage archive
 ```
 
 The other IDs are `linux-amd64`, `linux-arm64`, `macos-arm64` and
@@ -90,19 +94,52 @@ The other IDs are `linux-amd64`, `linux-arm64`, `macos-arm64` and
 Outputs, SDKs and dependency caches are under `.build/`.
 `ANDROID_NDK_HOME` can select an existing NDK with the exact pinned revision.
 
-Each target's `proof.json` records the archive checksum, architecture, checked
-FFI symbols, native link libraries and compiler versions. Container reports
-also capture the image ID and OS package inventory. Inspection results and
-build logs are saved beside each report. Generate a consolidated report from
-all six target results:
+Target-specific work directories under `.build/native/` are keyed by source,
+lockfile, toolchain, features and baseline. Build logs and inspection results
+remain there. Staged outputs under `.build/staged/<platform>/<stage>/` contain
+the library, dependency notices and a checksummed `build.json` manifest.
+The manifest records versions, architecture, compiler/SDK details and image
+identity. Debug sidecars stay outside runtime resources.
+
+Inspect staged static archives or generate a machine-readable report:
 
 ```sh
-python3 scripts/prove_toolchains.py --report > .build/toolchain-report.json
+python3 scripts/build_native.py --all --stage archive --inspect
+python3 scripts/build_native.py --all --stage archive --report > .build/toolchain-report.json
 ```
 
 Report generation rechecks archive and lockfile hashes. Reports describe a
 particular build environment and belong with generated artifacts under the
 ignored `.build/` directory.
+
+The default stage is `jni`, which compiles the shim with CMake and checks its
+architecture and exported JNI methods. macOS arm64 JNI builds are validated;
+Windows and Android JNI runtime compatibility is not established. JNI headers
+come from the target's JDK or NDK:
+
+- macOS uses `JAVA_HOME`, or the JDK selected by `/usr/libexec/java_home`.
+- Linux Docker images install the OpenJDK 17 development package.
+- The Windows Docker image extracts bundled headers from a versioned Temurin
+  Windows JDK archive, verifying the publisher's archive checksum.
+- Android uses the NDK headers.
+
+The selected JDK version and actual header hashes are recorded in build metadata
+and cache identity. Individual header hashes are not pinned in configuration.
+JDK updates are accepted when the required target headers and JDK 11+ metadata
+are present. Rebuild Docker images after changing their JDK setup. No JVM
+library is linked into the native binary.
+
+Each staged directory also has a sibling `<stage>.tar` bundle with stable file
+order, timestamps, permissions and ownership. Repeat assembly from the same
+inputs produces identical archive bytes; binary reproducibility across SDK
+or compiler changes is not guaranteed. `scripts/prove_toolchains.py` remains
+an alias for archive validation.
+
+Run build-tool checks independently with:
+
+```sh
+python3 -m unittest discover -s scripts/tests -v
+```
 
 ## Packet I/O and zero-copy at the JNI boundary
 

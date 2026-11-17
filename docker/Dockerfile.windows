@@ -56,4 +56,21 @@ RUN case "$TARGETARCH" in \
 
 ENV LIBCLANG_PATH=/usr/lib/llvm-20/lib
 RUN rustup component add llvm-tools
+
+# A Windows JDK supplies the target JNI definitions for both MSVC architectures.
+# Keep its bundled headers and provenance; its Windows executables are not run.
+ARG WINDOWS_JDK_VERSION=17.0.17
+ARG WINDOWS_JDK_BUILD=10
+RUN name="OpenJDK17U-jdk_x64_windows_hotspot_${WINDOWS_JDK_VERSION}_${WINDOWS_JDK_BUILD}.zip" \
+    && url="https://github.com/adoptium/temurin17-binaries/releases/download/jdk-${WINDOWS_JDK_VERSION}%2B${WINDOWS_JDK_BUILD}/$name" \
+    && curl -fsSL --retry 3 "$url" -o /tmp/windows-jdk.zip \
+    && curl -fsSL --retry 3 "$url.sha256.txt" -o /tmp/windows-jdk.sha256 \
+    && echo "$(cut -d ' ' -f 1 /tmp/windows-jdk.sha256)  /tmp/windows-jdk.zip" | sha256sum -c - \
+    && python3 -m zipfile -e /tmp/windows-jdk.zip /tmp/windows-jdk \
+    && mkdir -p /opt/windows-jdk \
+    && mv "/tmp/windows-jdk/jdk-${WINDOWS_JDK_VERSION}+${WINDOWS_JDK_BUILD}/include" \
+          "/tmp/windows-jdk/jdk-${WINDOWS_JDK_VERSION}+${WINDOWS_JDK_BUILD}/release" \
+          "/tmp/windows-jdk/jdk-${WINDOWS_JDK_VERSION}+${WINDOWS_JDK_BUILD}/legal" /opt/windows-jdk/ \
+    && rm -rf /tmp/windows-jdk /tmp/windows-jdk.zip /tmp/windows-jdk.sha256
+ENV JAVA_HOME=/opt/windows-jdk
 WORKDIR /work

@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.bosonnetwork</groupId>
     <artifactId>boson-quiche</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.30.1.1-SNAPSHOT</version>
     <name>Boson Quiche</name>
     <description>Socket-independent Java JNI bindings for Cloudflare quiche.</description>
     <url>https://bosonnetwork.io</url>
