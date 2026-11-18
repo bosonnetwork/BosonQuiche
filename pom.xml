@@ -28,7 +28,7 @@
     </properties>
     <modules>
         <module>api</module>
-        <module>native-artifacts</module>
+        <module>native</module>
     </modules>
     <build>
         <pluginManagement>
@@ -110,7 +110,7 @@
                                 <configuration>
                                     <target>
                                         <exec executable="python3" failonerror="true">
-                                            <arg value="${project.basedir}/scripts/package_artifacts.py" />
+                                            <arg value="${project.basedir}/native/scripts/package_artifacts.py" />
                                             <arg value="validate" />
                                             <arg value="--distribution" />
                                             <arg value="true" />

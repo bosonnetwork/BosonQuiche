@@ -70,9 +70,9 @@ def validate(target, staged=None):
                 'toolchains': json.loads((ROOT / 'native/toolchains.json').read_text()),
                 'cargo_lock_sha256': digest(ROOT / 'native/Cargo.lock'),
                 'cmake_sha256': digest(ROOT / 'native/CMakeLists.txt'),
-                'jni_declarations_sha256': digest(ROOT / 'src/main/java/io/bosonnetwork/quiche/Native.java'),
-                'jni_sources_sha256': identity({str(path.relative_to(ROOT)): digest(path)
-                    for path in sorted((ROOT / 'src/main/c').glob('*')) if path.is_file()})}
+                'jni_declarations_sha256': digest(ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
+                'jni_sources_sha256': identity({str(path.relative_to(ROOT / 'native')): digest(path)
+                    for path in sorted((ROOT / 'native/src/main/c').glob('*')) if path.is_file()})}
     for key, value in expected.items():
         if inputs.get(key) != value:
             raise ValueError('Stale native input ' + target + ': ' + key)

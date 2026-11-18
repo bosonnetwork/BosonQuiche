@@ -32,7 +32,6 @@
         </dependency>
     </dependencies>
     <build>
-        <directory>${project.basedir}/../../target/consumer-jvm</directory>
         <sourceDirectory>${project.basedir}/../consumer-common/src/main/java</sourceDirectory>
         <plugins>
             <plugin>
@@ -68,7 +67,7 @@
                                 <java classname="io.bosonnetwork.quiche.consumer.ConsumerProbe" fork="true" failonerror="true">
                                     <jvmarg value="-Xcheck:jni"/>
                                     <classpath refid="maven.runtime.classpath"/>
-                                    <arg value="${project.basedir}/../../src/test/resources"/>
+                                    <arg value="${project.basedir}/../../api/src/test/resources"/>
                                 </java>
                                 <pathconvert property="consumer.classpath" refid="maven.runtime.classpath"/>
                                 <echo file="${project.build.directory}/classpath.txt" message="${consumer.classpath}"/>

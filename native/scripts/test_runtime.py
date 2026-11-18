@@ -48,7 +48,7 @@ def prepare(target):
     if work.exists():
         shutil.rmtree(work)
     work.mkdir(parents=True)
-    classpath_file = ROOT / 'target/test-classpath.txt'
+    classpath_file = ROOT / 'api/target/test-classpath.txt'
     if not classpath_file.is_file():
         raise ValueError('Run Maven process-test-classes or verify before runtime tests')
     entries = []
@@ -120,7 +120,7 @@ def android(work, entries, sdk, serial):
     shutil.copyfile(dex, payload / 'suite.zip')
     shutil.copyfile(ROOT / '.build/staged/android-arm64/jni/libboson_quiche.so', payload / 'lib/libboson_quiche.so')
     for name in ('server-cert.pem', 'server-key.pem'):
-        shutil.copyfile(ROOT / 'src/test/resources' / name, payload / 'fixtures' / name)
+        shutil.copyfile(ROOT / 'api/src/test/resources' / name, payload / 'fixtures' / name)
     destination = '/data/local/tmp/boson-quiche-native-tests'
     run(adb, '-s', serial, 'shell', 'mkdir', '-p', destination)
     run(adb, '-s', serial, 'push', str(payload) + '/.', destination + '/')

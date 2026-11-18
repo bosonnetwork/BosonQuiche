@@ -23,6 +23,7 @@ replay_pid*
 target/
 .build/
 .gradle/
+build/
 /native/toolchain-proofs.json
 pom.xml.tag
 pom.xml.releaseBackup

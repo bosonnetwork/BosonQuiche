@@ -136,9 +136,9 @@ class NativeBuildTest(unittest.TestCase):
     def test_resources_restore_after_maven_output_is_deleted(self):
         with patch.object(build, 'ROOT', self.root):
             build.stage_maven(self.directory, 'macos-arm64')
-            shutil.rmtree(self.root / 'target')
+            shutil.rmtree(self.root / 'api/target')
             build.stage_maven(self.directory, 'macos-arm64')
-        self.assertTrue((self.root / 'target/native-test-resources/native/macos-aarch64/libboson_quiche.dylib').is_file())
+        self.assertTrue((self.root / 'api/target/native-test-resources/native/macos-aarch64/libboson_quiche.dylib').is_file())
 
     def test_cross_environment_drops_macos_and_compiler_settings(self):
         with patch.dict(os.environ, {'SDKROOT': '/host/sdk', 'CC': 'host-cc',
@@ -271,7 +271,7 @@ class NativeBuildTest(unittest.TestCase):
 
     def test_maven_and_documentation_pins_must_agree(self):
         shutil.copytree(config.ROOT / 'native', self.root / 'native',
-                        ignore=shutil.ignore_patterns('toolchain-proofs.json'))
+                        ignore=shutil.ignore_patterns('toolchain-proofs.json', 'target', '__pycache__'))
         shutil.copyfile(config.ROOT / 'pom.xml', self.root / 'pom.xml')
         docs = self.root / 'native/api-docs.json'
         docs.write_text(json.dumps({'version': '0.0.0'}))
@@ -280,7 +280,7 @@ class NativeBuildTest(unittest.TestCase):
 
     def test_vendored_header_mismatch_is_rejected(self):
         shutil.copytree(config.ROOT / 'native', self.root / 'native',
-                        ignore=shutil.ignore_patterns('toolchain-proofs.json'))
+                        ignore=shutil.ignore_patterns('toolchain-proofs.json', 'target', '__pycache__'))
         (self.root / 'native/quiche.h').write_text('wrong header')
         with self.assertRaisesRegex(ValueError, 'Vendored quiche.h'):
             config.validate_inputs(self.root)

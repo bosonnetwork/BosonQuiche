@@ -93,7 +93,7 @@ mvn -s .mvn/settings.xml -Dquiche.source=/absolute/path/to/quiche verify
 ```
 
 Sources, native build products and Cargo caches are under ignored `.build/`.
-Host native test resources are copied into `target/native-test-resources/`;
+Host native test resources are copied into `api/target/native-test-resources/`;
 `mvn clean` preserves the cached native inputs. A supplied checkout is not modified.
 `-Dnative.skip=true` validates and restores an existing host library without
 rebuilding it. Missing or stale inputs cause an error.
@@ -101,13 +101,13 @@ rebuilding it. Missing or stale inputs cause an error.
 The project has its own parent POM and manages its dependency versions
 independently of other Boson projects. Normal `verify` builds the API,
 runs host JNI tests and packages the host native classifier. Build outputs
-are under `target/api/` and `target/native-artifacts/`. The Java API JAR
+are under `api/target/` and `native/target/`. The Java API JAR
 contains no native libraries or test fixtures.
 
 After building all six staged JNI targets, package the complete distribution:
 
 ```sh
-python3 scripts/build_native.py --all
+python3 native/scripts/build_native.py --all
 mvn -s .mvn/settings.xml -Pdistribution -DskipTests verify
 ```
 
@@ -121,13 +121,13 @@ provenance stays in each artifact's `build.json`.
 The AAR is produced by Maven using a pinned `aar` lifecycle provider and
 standard ZIP/JAR assembly. Production builds do not invoke Gradle. The AAR's
 published POM retains `aar` packaging and its transitive API dependency.
-Its output is `target/android/boson-quiche-android-<version>.aar`.
+Its output is `android/target/boson-quiche-android-<version>.aar`.
 See [consumer verification](test-tooling/README.md) for isolated repository,
 JVM and minified Android consumer checks.
 
 ## Cross-platform native toolchains
 
-`scripts/build_native.py` builds and inspects quiche static archives for
+`native/scripts/build_native.py` builds and inspects quiche static archives for
 Linux amd64/arm64, macOS arm64, Android arm64 and Windows amd64/arm64. It uses
 the same quiche tag, checksum, Cargo lockfile and features as the Maven build.
 These checks validate static-library compilation and architecture. Windows
@@ -147,30 +147,30 @@ be selected with `--source /absolute/path/to/quiche`. Create the build images
 and install the pinned Android NDK:
 
 ```sh
-docker build --platform linux/arm64 -f docker/Dockerfile.windows \
-    -t boson-quiche-toolchain:windows-arm64 docker
-docker build --platform linux/arm64 -f docker/Dockerfile.linux \
-    -t boson-quiche-toolchain:linux-arm64 docker
-docker build --platform linux/amd64 -f docker/Dockerfile.linux \
-    -t boson-quiche-toolchain:linux-amd64 docker
+docker build --platform linux/arm64 -f native/docker/Dockerfile.windows \
+    -t boson-quiche-toolchain:windows-arm64 native/docker
+docker build --platform linux/arm64 -f native/docker/Dockerfile.linux \
+    -t boson-quiche-toolchain:linux-arm64 native/docker
+docker build --platform linux/amd64 -f native/docker/Dockerfile.linux \
+    -t boson-quiche-toolchain:linux-amd64 native/docker
 rustup component add llvm-tools
 rustup target add aarch64-linux-android
-python3 scripts/build_native.py --fetch-ndk
-python3 scripts/build_native.py --preflight
+python3 native/scripts/build_native.py --fetch-ndk
+python3 native/scripts/build_native.py --preflight
 ```
 
 Build and validate a target by its platform ID:
 
 ```sh
-python3 scripts/build_native.py --target windows-amd64 --stage archive
-python3 scripts/build_native.py --all --stage archive
+python3 native/scripts/build_native.py --target windows-amd64 --stage archive
+python3 native/scripts/build_native.py --all --stage archive
 ```
 
 Build or inspect the JNI shared libraries for all targets:
 
 ```sh
-python3 scripts/build_native.py --all
-python3 scripts/build_native.py --all --inspect
+python3 native/scripts/build_native.py --all
+python3 native/scripts/build_native.py --all --inspect
 ```
 
 The other IDs are `linux-amd64`, `linux-arm64`, `macos-arm64` and
@@ -188,8 +188,8 @@ identity. Debug sidecars stay outside runtime resources.
 Inspect staged static archives or generate a machine-readable report:
 
 ```sh
-python3 scripts/build_native.py --all --stage archive --inspect
-python3 scripts/build_native.py --all --stage archive --report > .build/toolchain-report.json
+python3 native/scripts/build_native.py --all --stage archive --inspect
+python3 native/scripts/build_native.py --all --stage archive --report > .build/toolchain-report.json
 ```
 
 Report generation rechecks archive and lockfile hashes. Reports describe a
@@ -218,13 +218,13 @@ library is linked into the native binary.
 Each staged directory also has a sibling `<stage>.tar` bundle with stable file
 order, timestamps, permissions and ownership. Repeat assembly from the same
 inputs produces identical archive bytes; binary reproducibility across SDK
-or compiler changes is not guaranteed. `scripts/prove_toolchains.py` remains
+or compiler changes is not guaranteed. `native/scripts/prove_toolchains.py` remains
 an alias for archive validation.
 
 Run build-tool checks independently with:
 
 ```sh
-python3 -m unittest discover -s scripts/tests -v
+python3 -m unittest discover -s native/scripts/tests -v
 ```
 
 Maven builds isolated loader-test libraries outside runtime resources. They
@@ -236,17 +236,17 @@ Prepare compiled tests and run them on the matching Linux container JVMs:
 
 ```sh
 mvn -s .mvn/settings.xml process-test-classes
-python3 scripts/build_native.py --target linux-amd64 --test-natives
-python3 scripts/test_runtime.py --target linux-amd64
-python3 scripts/build_native.py --target linux-arm64 --test-natives
-python3 scripts/test_runtime.py --target linux-arm64
+python3 native/scripts/build_native.py --target linux-amd64 --test-natives
+python3 native/scripts/test_runtime.py --target linux-amd64
+python3 native/scripts/build_native.py --target linux-arm64 --test-natives
+python3 native/scripts/test_runtime.py --target linux-arm64
 ```
 
 For a running ARM64 Android emulator with API 33 or later:
 
 ```sh
-python3 scripts/build_native.py --target android-arm64
-python3 scripts/test_runtime.py --target android-arm64 \
+python3 native/scripts/build_native.py --target android-arm64
+python3 native/scripts/test_runtime.py --target android-arm64 \
     --android-sdk /absolute/path/to/android-sdk --serial emulator-5554
 ```
 
@@ -370,10 +370,10 @@ absent from `quiche.h` are outside this binding's scope.
 
 `scripts/generate_api.py` regenerates enums, configuration setters and numeric
 struct snapshots from `native/quiche.h`, using the full MIT header in
-`native/copyright-header.txt`. Generated Java/C files retain the generation
-marker immediately below that header. Review upstream changes, update the
-pin and header together, update `native/Cargo.lock` explicitly with the build
-script's `--update-lock`, then rerun the native tests. Do not replace the native
+`native/copyright-header.txt`. Generated Java/C files retain the
+generation marker immediately below that header. Review upstream changes,
+update the pin and header together, update `native/Cargo.lock`
+explicitly with the build script's `--update-lock`, then rerun the native tests. Do not replace the native
 library with an arbitrary quiche build.
 
 ## Java API documentation
@@ -386,10 +386,10 @@ through versioned upstream API links. The package documentation explains the
 connection-driving model. Upstream BSD attribution is retained in `NOTICE`
 and in the generated documentation's `doc-files`.
 
-`mvn verify` generates HTML under `target/reports/apidocs/` and attaches
-`target/boson-quiche-0.1.0-SNAPSHOT-javadoc.jar`. JavaDoc uses full doclint and
-fails on warnings. Normal generation uses the checked-in documentation snapshot
-`native/api-docs.json`, so no upstream checkout or network is needed for it.
+`mvn verify` generates HTML under `api/target/reports/apidocs/` and attaches
+`api/target/boson-quiche-0.30.1.1-SNAPSHOT-javadoc.jar`. JavaDoc uses full
+doclint and fails on warnings. Normal generation uses the checked-in snapshot
+`native/api-docs.json`, so no upstream checkout or network is needed.
 
 To refresh documentation after reviewing an upstream release:
 

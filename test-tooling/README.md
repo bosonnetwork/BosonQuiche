@@ -4,13 +4,13 @@ These consumers are independent of the production Maven reactor. The JVM
 consumer uses published JARs; the Android application uses an ordinary AAR
 coordinate and enables R8 for its release build. Both exercise TLS handshakes,
 direct-buffer slices, streams, datagrams, native statistics and HTTP/3 callbacks.
-The test certificate and private key are public fixtures from `src/test/resources/`.
+The test certificate and private key are public fixtures from `api/src/test/resources/`.
 
 Run commands from the repository root. First build all native targets, verify
 the host, then install the complete distribution into an isolated repository:
 
 ```sh
-python3 scripts/build_native.py --all
+python3 native/scripts/build_native.py --all
 mvn -s .mvn/settings.xml verify
 mvn -s .mvn/settings.xml -Pdistribution -DskipTests \
     -Dmaven.repo.local="$PWD/.build/artifact-repository" install
@@ -76,7 +76,7 @@ The SDK suppression acknowledges that AGP 8.9.1 was tested through compile SDK
 `resolvedBosonArtifacts` must list the AAR and its transitive API JAR. No `@aar`
 notation or separate API dependency is used. The app has no additional JNI
 keep rules; it relies on those supplied by the AAR. R8 mappings and the APK
-are under `target/consumer-android/`.
+are under `test-tooling/android-consumer/build/`.
 
 Start a disposable API 33+ ARM64 emulator, then select its serial explicitly:
 

@@ -31,6 +31,7 @@ import sys
 import xml.etree.ElementTree as ET
 import zipfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'native/scripts'))
 import native_config as config
 
 NS = {'m': 'http://maven.apache.org/POM/4.0.0'}

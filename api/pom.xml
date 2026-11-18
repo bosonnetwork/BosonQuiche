@@ -25,24 +25,21 @@
         </dependency>
     </dependencies>
     <build>
-        <directory>${project.basedir}/../target/api</directory>
-        <sourceDirectory>${project.basedir}/../src/main/java</sourceDirectory>
-        <testSourceDirectory>${project.basedir}/../src/test/java</testSourceDirectory>
         <resources>
             <resource>
-                <directory>${project.basedir}/../src/main/filtered-resources</directory>
+                <directory>${project.basedir}/src/main/filtered-resources</directory>
                 <filtering>true</filtering>
             </resource>
             <resource>
-                <directory>${project.basedir}/../src/main/resources</directory>
+                <directory>${project.basedir}/src/main/resources</directory>
             </resource>
         </resources>
         <testResources>
             <testResource>
-                <directory>${project.basedir}/../src/test/resources</directory>
+                <directory>${project.basedir}/src/test/resources</directory>
             </testResource>
             <testResource>
-                <directory>${project.basedir}/../target/native-test-resources</directory>
+                <directory>${project.build.directory}/native-test-resources</directory>
             </testResource>
         </testResources>
         <plugins>
@@ -59,7 +56,7 @@
                         <configuration>
                             <target>
                                 <pathconvert property="native.test.classpath" refid="maven.test.classpath" />
-                                <echo file="${project.basedir}/../target/test-classpath.txt" message="${native.test.classpath}" />
+                                <echo file="${project.build.directory}/test-classpath.txt" message="${native.test.classpath}" />
                             </target>
                         </configuration>
                     </execution>
@@ -72,7 +69,7 @@
                         <configuration>
                             <target>
                                 <exec executable="python3" failonerror="true">
-                                    <arg value="${project.basedir}/../scripts/build_native.py" />
+                                    <arg value="${project.basedir}/../native/scripts/build_native.py" />
                                     <arg value="--source" />
                                     <arg value="${quiche.source}" />
                                     <arg value="--skip" />
@@ -97,7 +94,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>-Xcheck:jni -Dboson.quiche.test.libraries=${project.basedir}/../target/native-test-libraries</argLine>
+                    <argLine>-Xcheck:jni -Dboson.quiche.test.libraries=${project.build.directory}/native-test-libraries</argLine>
                 </configuration>
             </plugin>
             <plugin>

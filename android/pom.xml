@@ -18,7 +18,6 @@
         </dependency>
     </dependencies>
     <build>
-        <directory>${project.basedir}/../target/android</directory>
         <plugins>
             <!-- Use the aar artifact handler/lifecycle; ZIP assembly below replaces legacy SDK goals. -->
             <plugin>
@@ -69,7 +68,7 @@
                         <configuration>
                             <target>
                                 <exec executable="python3" failonerror="true">
-                                    <arg value="${project.basedir}/../scripts/package_artifacts.py" />
+                                    <arg value="${project.basedir}/../native/scripts/package_artifacts.py" />
                                     <arg value="android" />
                                     <arg value="--output" />
                                     <arg value="${project.build.directory}/aar-contents" />

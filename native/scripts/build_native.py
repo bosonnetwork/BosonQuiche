@@ -52,7 +52,7 @@ def toolchain_identity(target, pins):
                  pins['linux_image_prefix'] + target.split('-')[1])
         info = json.loads(output('docker', 'image', 'inspect', image))[0]
         return {'image_id': info['Id'], 'image_arch': info['Architecture'],
-                'recipe_sha256': digest(ROOT / 'docker' / (
+                'recipe_sha256': digest(ROOT / 'native/docker' / (
                     'Dockerfile.windows' if target.startswith('windows-') else 'Dockerfile.linux'))}
     if target.startswith('windows-'):
         raise ValueError('Windows targets require the pinned Docker builder on macOS')
@@ -90,10 +90,10 @@ def build_inputs(target, source_hash, binding_version, pins, tools):
             'cargo_lock_sha256': digest(ROOT / 'native/Cargo.lock'), 'features': FEATURES,
             'toolchains': pins, 'builder': tools,
             'build_scripts_sha256': identity({path.name: digest(path) for path in
-                sorted(list((ROOT / 'scripts').glob('native_*.py')) + [Path(__file__)])}),
-            'jni_sources_sha256': identity({str(path.relative_to(ROOT)): digest(path) for path in
-                sorted((ROOT / 'src/main/c').glob('*')) if path.is_file()}),
-            'jni_declarations_sha256': digest(ROOT / 'src/main/java/io/bosonnetwork/quiche/Native.java'),
+                sorted(list((ROOT / 'native/scripts').glob('native_*.py')) + [Path(__file__)])}),
+            'jni_sources_sha256': identity({str(path.relative_to(ROOT / 'native')): digest(path) for path in
+                sorted((ROOT / 'native/src/main/c').glob('*')) if path.is_file()}),
+            'jni_declarations_sha256': digest(ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
             'cmake_sha256': digest(ROOT / 'native/CMakeLists.txt')}
 
 
@@ -148,9 +148,8 @@ def target_jni_identity(target, pins, tools):
                'p=json.loads((b.ROOT/"native/toolchains.json").read_text()); '
                'print(json.dumps(b.jni_identity(' + repr(target) + ', p)))')
     return json.loads(output('docker', 'run', '--rm', '--platform', 'linux/' + tools['image_arch'],
-        '--mount', f'type=bind,source={ROOT / "scripts"},target=/project/scripts,readonly',
         '--mount', f'type=bind,source={ROOT / "native"},target=/project/native,readonly',
-        '--workdir', '/project/scripts', tools['image_id'], 'python3', '-c', command))
+        '--workdir', '/project/native/scripts', tools['image_id'], 'python3', '-c', command))
 
 
 def llvm_tools():
@@ -180,7 +179,7 @@ def inspect_binary(binary, target, work):
         names = (re.findall(r'^\s*Name: (\w+)\s*$', output(str(tools / 'llvm-readobj'), '--coff-exports', str(binary)), re.M)
                  if windows else re.findall(r'\b([A-Za-z0-9_]+)\s*$', exports, re.M))
         dependencies = headers
-    declarations = (ROOT / 'src/main/java/io/bosonnetwork/quiche/Native.java').read_text()
+    declarations = (ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java').read_text()
     expected = {'JNI_OnLoad', 'JNI_OnUnload'} | {
         'Java_io_bosonnetwork_quiche_Native_' + method
         for method in re.findall(r'static native \S+ (\w+)\(', declarations)}
@@ -208,7 +207,8 @@ def compile_jni(target, source, work, inputs, pins, cache, headers, test_natives
     cmake = work / 'jni'
     build = json.loads((work / 'inputs.json').read_text())
     execute('cmake', '-S', str(inputs), '-B', str(cmake), '-DCMAKE_BUILD_TYPE=Release',
-            '-DBOSON_SOURCE=' + str(inputs.parent / 'src/main/c'),
+            '-DBOSON_SOURCE=' + str(inputs / 'src/main/c'),
+            '-DBOSON_JAVA_SOURCE=' + str(ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
             '-DQUICHE_INCLUDE=' + str(source / 'quiche/include'),
             '-DQUICHE_ARCHIVE=' + str(archive), '-DLINK_SUPPORT=' + str(work / 'link-support'),
             '-DJNI_INCLUDE=' + str(headers),
@@ -228,16 +228,13 @@ def run_container(target, source, work, tools, stage, test_natives=False):
     cache = ROOT / '.build/cache'
     cache.mkdir(parents=True, exist_ok=True)
     mounts = [(source, '/source', True), (work, '/work', False), (cache, '/cache', False),
-              (ROOT / 'scripts', '/project/scripts', True), (ROOT / 'native', '/project/native', True),
-              (ROOT / 'src/main/c', '/project/src/main/c', True),
-              (ROOT / 'src/main/java/io/bosonnetwork/quiche/Native.java',
-               '/project/src/main/java/io/bosonnetwork/quiche/Native.java', True)]
-    if test_natives:
-        mounts.append((ROOT / 'src/test/c', '/project/src/test/c', True))
+              (ROOT / 'native', '/project/native', True),
+              (ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java',
+               '/project/api/src/main/java/io/bosonnetwork/quiche/Native.java', True)]
     command = ['docker', 'run', '--rm', '--platform', 'linux/' + tools['image_arch']]
     for path, destination, readonly in mounts:
         command += ['--mount', f'type=bind,source={path},target={destination}' + (',readonly' if readonly else '')]
-    command += [tools['image_id'], 'python3', '/project/scripts/build_native.py',
+    command += [tools['image_id'], 'python3', '/project/native/scripts/build_native.py',
                 '--inside', '--target', target, '--stage', stage]
     if test_natives:
         command.append('--test-natives')
@@ -332,7 +329,7 @@ def stage_output(target, stage, work, inputs, revision):
 def stage_maven(directory, target):
     """Restore host resources after Maven clean without deleting native inputs."""
     manifest = validate_manifest(directory, target, 'jni')
-    generated = ROOT / 'target/native-test-resources'
+    generated = ROOT / 'api/target/native-test-resources'
     native = generated / 'native' / TARGETS[target].classifier
     native.mkdir(parents=True, exist_ok=True)
     for name in (TARGETS[target].binary, 'build.json'):
@@ -345,7 +342,7 @@ def stage_maven(directory, target):
 
 
 def stage_test_natives(work):
-    directory = ROOT / 'target/native-test-libraries'
+    directory = ROOT / 'api/target/native-test-libraries'
     if directory.exists():
         shutil.rmtree(directory)
     shutil.copytree(work / 'jni/test-libraries', directory)
@@ -438,7 +435,7 @@ def main(argv=None):
                     stage_test_natives(work)
             print('Staged:', target, stage, destination)
     if args.report:
-        print(json.dumps({'generated_by': 'scripts/build_native.py --report', 'builds': reports}, indent=2))
+        print(json.dumps({'generated_by': 'native/scripts/build_native.py --report', 'builds': reports}, indent=2))
     return 0
 
 

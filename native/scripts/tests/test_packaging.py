@@ -158,7 +158,7 @@ class PackagingTest(unittest.TestCase):
         self.assertTrue((output / 'proguard.txt').is_file())
 
     def test_consumer_rules_cover_every_named_jni_class(self):
-        source = '\n'.join(path.read_text() for path in (config.ROOT / 'src/main/c').glob('*') if path.is_file())
+        source = '\n'.join(path.read_text() for path in (config.ROOT / 'native/src/main/c').glob('*') if path.is_file())
         referenced = set(re.findall(r'construct\(env,\s*"(\w+)"', source))
         referenced.update(re.findall(r'FindClass\(env, PACKAGE "(\w+)"', source))
         rules = (config.ROOT / 'android/src/main/proguard.txt').read_text()

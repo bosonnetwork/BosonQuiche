@@ -486,6 +486,6 @@ def document(name, source):
 
 
 if __name__ == '__main__':
-    for path in (ROOT / 'src/main/java/io/bosonnetwork/quiche').glob('*.java'):
+    for path in (ROOT / 'api/src/main/java/io/bosonnetwork/quiche').glob('*.java'):
         if re.search(r'^public (?:final )?(?:class|enum) ', path.read_text(), re.M) or path.stem == 'NativeResource':
             path.write_text(document(path.stem, path.read_text()), encoding='ascii')

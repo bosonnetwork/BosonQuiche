@@ -27,8 +27,10 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'native/scripts'))
 from native_config import ROOT, digest
 
 
@@ -74,7 +76,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--android-sdk', type=Path, required=True)
     parser.add_argument('--serial', required=True)
-    parser.add_argument('--apk', type=Path, default=ROOT / 'target/consumer-android/outputs/apk/release/boson-quiche-android-consumer-release.apk')
+    parser.add_argument('--apk', type=Path, default=ROOT / 'test-tooling/android-consumer/build/outputs/apk/release/boson-quiche-android-consumer-release.apk')
     parser.add_argument('--report', type=Path)
     args = parser.parse_args()
     result = run(args.android_sdk.resolve(), args.serial, args.apk.resolve())

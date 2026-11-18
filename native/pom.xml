@@ -21,7 +21,6 @@
         </dependency>
     </dependencies>
     <build>
-        <directory>${project.basedir}/../target/native-artifacts</directory>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -36,7 +35,7 @@
                         <configuration>
                             <target>
                                 <exec executable="python3" failonerror="true">
-                                    <arg value="${project.basedir}/../scripts/package_artifacts.py" />
+                                    <arg value="${project.basedir}/scripts/package_artifacts.py" />
                                     <arg value="desktop" />
                                     <arg value="--output" />
                                     <arg value="${project.build.directory}" />
@@ -68,7 +67,7 @@
                                 <configuration combine.self="override">
                                     <target>
                                         <exec executable="python3" failonerror="true">
-                                            <arg value="${project.basedir}/../scripts/package_artifacts.py" />
+                                            <arg value="${project.basedir}/scripts/package_artifacts.py" />
                                             <arg value="desktop" />
                                             <arg value="--output" />
                                             <arg value="${project.build.directory}" />

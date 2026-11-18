@@ -24,8 +24,6 @@ plugins {
     id 'com.android.application' version '8.9.1'
 }
 
-layout.buildDirectory = file('../../target/consumer-android')
-
 android {
     namespace 'io.bosonnetwork.quiche.consumer'
     compileSdk 36
@@ -41,7 +39,7 @@ android {
 
     sourceSets {
         main.java.srcDir '../consumer-common/src/main/java'
-        main.assets.srcDir '../../src/test/resources'
+        main.assets.srcDir '../../api/src/test/resources'
     }
 
     compileOptions {

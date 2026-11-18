@@ -37,8 +37,8 @@ class RuntimeClasspathTest(unittest.TestCase):
     def test_selected_native_is_injected_once_after_host_resources_are_removed(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            tests = root / 'target/api/test-classes'
-            api = root / 'target/api/classes'
+            tests = root / 'api/target/test-classes'
+            api = root / 'api/target/classes'
             (api / 'io/bosonnetwork/quiche').mkdir(parents=True)
             (api / 'io/bosonnetwork/quiche/Native.class').write_bytes(b'API fixture')
             (tests / 'native/macos-aarch64').mkdir(parents=True)
@@ -46,7 +46,7 @@ class RuntimeClasspathTest(unittest.TestCase):
             staged = root / '.build/staged/linux-arm64/jni'
             staged.mkdir(parents=True)
             (staged / 'libboson_quiche.so').write_bytes(b'Linux fixture')
-            (root / 'target/test-classpath.txt').write_text(os.pathsep.join(map(str, (tests, api))))
+            (root / 'api/target/test-classpath.txt').write_text(os.pathsep.join(map(str, (tests, api))))
             with patch.object(runtime, 'ROOT', root), patch.object(runtime.build, 'validate_manifest', return_value={}):
                 work, _, entries = runtime.prepare('linux-arm64')
             self.assertFalse((work / entries[0] / 'native').exists())

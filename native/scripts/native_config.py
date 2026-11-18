@@ -37,7 +37,7 @@ import tarfile
 import urllib.request
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 UPSTREAM = json.loads((ROOT / 'native/quiche.json').read_text())
 TAG = UPSTREAM['tag']
 ARCHIVE_SHA256 = UPSTREAM['archive_sha256']
