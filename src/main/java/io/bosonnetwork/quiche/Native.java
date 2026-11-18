@@ -22,24 +22,18 @@
 
 package io.bosonnetwork.quiche;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Locale;
 
 /** JNI entry points. Native handles and ABI-dependent layouts stay internal. */
 final class Native {
     private static final ThreadLocal<Boolean> CALLBACK = ThreadLocal.withInitial(() -> false);
     static {
-        load();
+        NativeLoader.load();
     }
 
     private Native() {
@@ -59,50 +53,6 @@ final class Native {
         } finally {
             CALLBACK.set(previous);
         }
-    }
-
-    private static void load() {
-        String explicit = System.getProperty("boson.quiche.library");
-        if (explicit != null) {
-            System.load(Path.of(explicit).toAbsolutePath().toString());
-            checkVersion();
-
-            return;
-        }
-
-        String os = System.getProperty("os.name").toLowerCase(Locale.ROOT);
-        os = os.contains("mac") ? "macos" : os.contains("linux") ? "linux" : os.contains("win") ? "windows" : os;
-        String arch = System.getProperty("os.arch").toLowerCase(Locale.ROOT);
-        if (arch.equals("arm64"))
-            arch = "aarch64";
-
-        if (arch.equals("amd64"))
-            arch = "x86_64";
-
-        String name = System.mapLibraryName("boson_quiche");
-        String resource = "/native/" + os + "-" + arch + "/" + name;
-
-        try (InputStream input = Native.class.getResourceAsStream(resource)) {
-            if (input == null)
-                throw new UnsatisfiedLinkError("No bundled native library " + resource
-                        + "; set -Dboson.quiche.library=/absolute/path/to/library");
-
-            Path directory = Files.createTempDirectory("boson-quiche-");
-            Path library = directory.resolve(name);
-            directory.toFile().deleteOnExit();
-            library.toFile().deleteOnExit();
-            Files.copy(input, library, StandardCopyOption.REPLACE_EXISTING);
-            System.load(library.toAbsolutePath().toString());
-        } catch (IOException error) {
-            throw new ExceptionInInitializerError(error);
-        }
-
-        checkVersion();
-    }
-
-    private static void checkVersion() {
-        if (!version().equals("0.30.1"))
-            throw new UnsatisfiedLinkError("Binding requires quiche 0.30.1, found " + version());
     }
 
     static byte[] utf8(String text) {
@@ -133,6 +83,10 @@ final class Native {
             throw new IllegalArgumentException(impossible);
         }
     }
+
+    static native int bindingAbi();
+
+    static native String bindingVersion();
 
     static native String version();
 

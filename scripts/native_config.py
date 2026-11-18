@@ -149,6 +149,14 @@ def validate_inputs(root=ROOT):
     return pom.findtext('m:version', namespaces=ns)
 
 
+def binding_abi(root=ROOT):
+    value = ET.parse(root / 'pom.xml').getroot().findtext(
+        '{http://maven.apache.org/POM/4.0.0}properties/{http://maven.apache.org/POM/4.0.0}quiche.binding.abi')
+    if not value or not value.isdigit() or int(value) < 1:
+        raise ValueError('quiche.binding.abi must be a positive integer')
+    return int(value)
+
+
 def download_verified(url, destination, expected):
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():

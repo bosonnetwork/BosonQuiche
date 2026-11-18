@@ -23,7 +23,9 @@
 #define _POSIX_C_SOURCE 200809L
 #include <jni.h>
 #include <quiche.h>
+#ifndef _WIN32
 #include <arpa/inet.h>
+#endif
 #include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -34,6 +36,13 @@
 #define JN(name) Java_io_bosonnetwork_quiche_Native_##name
 #define PTR(type, handle) ((type *) (uintptr_t) (handle))
 #define PACKAGE "io/bosonnetwork/quiche/"
+
+_Static_assert(sizeof(jlong) == 8, "JNI long must be 64 bits");
+_Static_assert(sizeof(uintptr_t) == sizeof(void *), "Native handle width mismatch");
+#ifdef _WIN32
+_Static_assert(sizeof(long) == 4, "Windows requires the LLP64 ABI");
+_Static_assert(sizeof(time_t) == 8, "Windows time_t must be 64 bits");
+#endif
 
 static void fail(JNIEnv *env, const char *type, const char *message) {
     if ((*env)->ExceptionCheck(env)) return;
@@ -182,6 +191,14 @@ JNIEXPORT jstring JNICALL JN(version)(JNIEnv *env, jclass cls) {
     return (*env)->NewStringUTF(env, quiche_version());
 }
 
+JNIEXPORT jint JNICALL JN(bindingAbi)(JNIEnv *env, jclass cls) {
+    return BOSON_BINDING_ABI;
+}
+
+JNIEXPORT jstring JNICALL JN(bindingVersion)(JNIEnv *env, jclass cls) {
+    return (*env)->NewStringUTF(env, BOSON_BINDING_VERSION);
+}
+
 JNIEXPORT jboolean JNICALL JN(versionIsSupported)(JNIEnv *env, jclass cls, jint version) {
     return quiche_version_is_supported((uint32_t) version); 
 }
@@ -318,6 +335,9 @@ JNIEXPORT jobject JNICALL JN(send)(JNIEnv *env, jclass cls, jlong handle, jobjec
     jobject destination = java_address(env, (struct sockaddr *) &info.to);
     jobject time = construct(env, "Timespec", "(JJ)V", (jlong) info.at.tv_sec, (jlong) info.at.tv_nsec);
     jlong delay = 0;
+#if !defined(_WIN32) && !defined(__APPLE__)
+    /* quiche exposes CLOCK_MONOTONIC timestamps on Linux/Android. Its macOS
+     * and Windows FFI returns zero; do not substitute another clock epoch. */
     if (info.at.tv_sec != 0 || info.at.tv_nsec != 0) {
         struct timespec now;
         if (clock_gettime(CLOCK_MONOTONIC, &now) == 0) {
@@ -325,6 +345,7 @@ JNIEXPORT jobject JNICALL JN(send)(JNIEnv *env, jclass cls, jlong handle, jobjec
             if (delay < 0) delay = 0;
         }
     }
+#endif
     jobject out = construct(env, "SendInfo", "(ILjava/net/InetSocketAddress;Ljava/net/InetSocketAddress;L" PACKAGE "Timespec;J)V",
                             (jint) result, source, destination, time, delay);
     (*env)->DeleteLocalRef(env, source); (*env)->DeleteLocalRef(env, destination); (*env)->DeleteLocalRef(env, time);

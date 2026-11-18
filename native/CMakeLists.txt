@@ -21,6 +21,10 @@
 cmake_minimum_required(VERSION 3.22)
 project(boson_quiche LANGUAGES C)
 
+if(NOT BOSON_BINDING_ABI MATCHES "^[1-9][0-9]*$" OR NOT BOSON_BINDING_VERSION)
+    message(FATAL_ERROR "Binding ABI and version are required")
+endif()
+
 foreach(input BOSON_SOURCE QUICHE_INCLUDE QUICHE_ARCHIVE JNI_INCLUDE)
     if(NOT EXISTS "${${input}}")
         message(FATAL_ERROR "Missing native build input ${input}: ${${input}}")
@@ -33,6 +37,8 @@ set_target_properties(boson_quiche PROPERTIES
 target_include_directories(boson_quiche PRIVATE
     "${QUICHE_INCLUDE}" "${JNI_INCLUDE}" "${JNI_PLATFORM_INCLUDE}")
 target_link_libraries(boson_quiche PRIVATE "${QUICHE_ARCHIVE}")
+target_compile_definitions(boson_quiche PRIVATE
+    BOSON_BINDING_ABI=${BOSON_BINDING_ABI} BOSON_BINDING_VERSION="${BOSON_BINDING_VERSION}")
 
 if(MSVC)
     set_property(TARGET boson_quiche PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
@@ -73,5 +79,19 @@ else()
             target_link_libraries(boson_quiche PRIVATE "-Wl,-Bstatic" stdc++ "-Wl,-Bdynamic")
         endif()
     endif()
+endif()
+
+option(BOSON_TEST_NATIVES "Build isolated native loader fixtures" OFF)
+if(BOSON_TEST_NATIVES)
+    foreach(kind abi version upstream legacy)
+        add_library(loader_${kind} SHARED "${BOSON_SOURCE}/../../test/c/loader_stub.c")
+        target_include_directories(loader_${kind} PRIVATE "${JNI_INCLUDE}" "${JNI_PLATFORM_INCLUDE}")
+        target_compile_definitions(loader_${kind} PRIVATE
+            BOSON_BINDING_ABI=${BOSON_BINDING_ABI} BOSON_BINDING_VERSION="${BOSON_BINDING_VERSION}"
+            STUB_${kind}=1)
+        set_target_properties(loader_${kind} PROPERTIES
+            C_STANDARD 11 LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-libraries"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-libraries")
+    endforeach()
 endif()
 

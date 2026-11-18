@@ -25,7 +25,7 @@ package io.bosonnetwork.quiche;
 import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.SecureRandom;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -69,8 +69,12 @@ final class Pair implements AutoCloseable {
     }
 
     static String resource(String name) {
+        String directory = System.getProperty("boson.quiche.test.resources");
+        if (directory != null)
+            return Paths.get(directory, name).toString();
+
         try {
-            return Path.of(Pair.class.getResource("/" + name).toURI()).toString();
+            return Paths.get(Pair.class.getResource("/" + name).toURI()).toString();
         } catch (URISyntaxException e) {
             throw new AssertionError(e);
         }

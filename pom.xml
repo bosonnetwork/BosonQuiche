@@ -20,11 +20,19 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>11</maven.compiler.release>
         <quiche.version>0.30.1</quiche.version>
+        <quiche.binding.abi>1</quiche.binding.abi>
         <quiche.source></quiche.source>
         <native.skip>false</native.skip>
         <junit.version>5.14.4</junit.version>
+        <junit.platform.version>1.14.4</junit.platform.version>
     </properties>
     <dependencies>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>${junit.platform.version}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -34,6 +42,10 @@
     </dependencies>
     <build>
         <resources>
+            <resource>
+                <directory>src/main/filtered-resources</directory>
+                <filtering>true</filtering>
+            </resource>
             <resource>
                 <directory>src/main/resources</directory>
             </resource>
@@ -48,6 +60,19 @@
                 <version>3.1.0</version>
                 <executions>
                     <execution>
+                        <id>native-test-classpath</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <pathconvert property="native.test.classpath" refid="maven.test.classpath"/>
+                                <echo file="${project.build.directory}/test-classpath.txt" message="${native.test.classpath}"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>native-library</id>
                         <phase>generate-resources</phase>
                         <goals>
@@ -61,6 +86,7 @@
                                     <arg value="${quiche.source}"/>
                                     <arg value="--skip"/>
                                     <arg value="${native.skip}"/>
+                                    <arg value="--test-natives"/>
                                 </exec>
                             </target>
                         </configuration>
@@ -82,7 +108,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.5</version>
                 <configuration>
-                    <argLine>-Xcheck:jni</argLine>
+                    <argLine>-Xcheck:jni -Dboson.quiche.test.libraries=${project.basedir}/target/native-test-libraries</argLine>
                 </configuration>
             </plugin>
             <plugin>

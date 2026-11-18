@@ -37,9 +37,13 @@ static jstring log_string(JNIEnv *env, const char *line) {
 }
 static void log_callback(const char *line, void *argument) {
     JNIEnv *env = NULL; bool attached = false;
-    jint status = (*java_vm)->GetEnv(java_vm, (void **) &env, JNI_VERSION_1_8);
+    jint status = (*java_vm)->GetEnv(java_vm, (void **) &env, JNI_VERSION_1_6);
     if (status == JNI_EDETACHED) {
+#ifdef __ANDROID__
+        if ((*java_vm)->AttachCurrentThread(java_vm, &env, NULL) != JNI_OK) return;
+#else
         if ((*java_vm)->AttachCurrentThread(java_vm, (void **) &env, NULL) != JNI_OK) return;
+#endif
         attached = true;
     } else if (status != JNI_OK) return;
     /* Do not replace an exception already being propagated by a JNI call. */
@@ -66,10 +70,10 @@ JNIEXPORT void JNICALL JN(debugLogging)(JNIEnv *env, jclass cls, jobject consume
         fail(env, "java/lang/IllegalStateException", "Upstream quiche logger is already initialized");
     }
 }
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) { java_vm = vm; return JNI_VERSION_1_8; }
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) { java_vm = vm; return JNI_VERSION_1_6; }
 JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
     JNIEnv *env = NULL;
-    if (log_consumer && (*vm)->GetEnv(vm, (void **) &env, JNI_VERSION_1_8) == JNI_OK) {
+    if (log_consumer && (*vm)->GetEnv(vm, (void **) &env, JNI_VERSION_1_6) == JNI_OK) {
         (*env)->DeleteGlobalRef(env, log_consumer); log_consumer = NULL;
     }
 }

@@ -84,7 +84,7 @@ def build_inputs(target, source_hash, binding_version, pins, tools):
     spec = TARGETS[target]
     return {'platform': target, 'rust_target': spec.rust, 'classifier': spec.classifier,
             'binary_name': spec.binary, 'android_abi': 'arm64-v8a' if spec.jni == 'android' else None,
-            'baseline': spec.baseline, 'binding_version': binding_version,
+            'baseline': spec.baseline, 'binding_version': binding_version, 'binding_abi': config.binding_abi(),
             'quiche_version': TAG, 'quiche_tag': TAG, 'quiche_archive_url': ARCHIVE_URL,
             'quiche_archive_sha256': ARCHIVE_SHA256, 'source_tree_sha256': source_hash,
             'cargo_lock_sha256': digest(ROOT / 'native/Cargo.lock'), 'features': FEATURES,
@@ -191,7 +191,7 @@ def inspect_binary(binary, target, work):
     return {'machines': machines, 'jni_exports': sorted(set(names)), 'runtime_tested': False}
 
 
-def compile_jni(target, source, work, inputs, pins, cache, headers):
+def compile_jni(target, source, work, inputs, pins, cache, headers, test_natives=False):
     """Compile only against headers; no target JVM library is linked."""
     report = json.loads((work / 'proof.json').read_text())
     archive = Path(report['archive'])
@@ -206,12 +206,16 @@ def compile_jni(target, source, work, inputs, pins, cache, headers):
         flags += ['-DCMAKE_TOOLCHAIN_FILE=' + str(sdk / 'cmake/clang-cl' / (TARGETS[target].rust + '-toolchain.cmake'))]
         env['PATH'] = str(sdk) + os.pathsep + env['PATH']
     cmake = work / 'jni'
+    build = json.loads((work / 'inputs.json').read_text())
     execute('cmake', '-S', str(inputs), '-B', str(cmake), '-DCMAKE_BUILD_TYPE=Release',
             '-DBOSON_SOURCE=' + str(inputs.parent / 'src/main/c'),
             '-DQUICHE_INCLUDE=' + str(source / 'quiche/include'),
             '-DQUICHE_ARCHIVE=' + str(archive), '-DLINK_SUPPORT=' + str(work / 'link-support'),
             '-DJNI_INCLUDE=' + str(headers),
             '-DJNI_PLATFORM_INCLUDE=' + str(headers / TARGETS[target].jni),
+            '-DBOSON_BINDING_ABI=' + str(build['binding_abi']),
+            '-DBOSON_BINDING_VERSION=' + build['binding_version'],
+            '-DBOSON_TEST_NATIVES=' + ('ON' if test_natives else 'OFF'),
             *flags, env=env)
     execute('cmake', '--build', str(cmake), '--parallel', '4', env=env)
     binary = cmake / TARGETS[target].binary
@@ -219,7 +223,7 @@ def compile_jni(target, source, work, inputs, pins, cache, headers):
     return binary
 
 
-def run_container(target, source, work, tools, stage):
+def run_container(target, source, work, tools, stage, test_natives=False):
     """Mount only selected inputs, never a home directory or publishing state."""
     cache = ROOT / '.build/cache'
     cache.mkdir(parents=True, exist_ok=True)
@@ -228,11 +232,15 @@ def run_container(target, source, work, tools, stage):
               (ROOT / 'src/main/c', '/project/src/main/c', True),
               (ROOT / 'src/main/java/io/bosonnetwork/quiche/Native.java',
                '/project/src/main/java/io/bosonnetwork/quiche/Native.java', True)]
+    if test_natives:
+        mounts.append((ROOT / 'src/test/c', '/project/src/test/c', True))
     command = ['docker', 'run', '--rm', '--platform', 'linux/' + tools['image_arch']]
     for path, destination, readonly in mounts:
         command += ['--mount', f'type=bind,source={path},target={destination}' + (',readonly' if readonly else '')]
     command += [tools['image_id'], 'python3', '/project/scripts/build_native.py',
                 '--inside', '--target', target, '--stage', stage]
+    if test_natives:
+        command.append('--test-natives')
     execute(*command)
     report = json.loads((work / 'proof.json').read_text())
     report['archive'] = str(work / Path(report['archive']).relative_to('/work'))
@@ -308,7 +316,7 @@ def stage_output(target, stage, work, inputs, revision):
     details = json.dumps(report).replace(str(work), '${BUILD}').replace(str(ROOT), '${PROJECT}')
     manifest = {'schema': 1, 'status': 'passed', 'stage': stage, 'platform': target,
                 'rust_target': TARGETS[target].rust, 'classifier': TARGETS[target].classifier,
-                'binding_version': inputs['binding_version'], 'quiche_version': TAG,
+                'binding_version': inputs['binding_version'], 'binding_abi': inputs['binding_abi'], 'quiche_version': TAG,
                 'source_revision': revision, 'runtime_tested': False, **inspection,
                 'input_identity': identity(inputs), 'inputs': inputs,
                 'native': json.loads(details), 'files': files}
@@ -336,6 +344,13 @@ def stage_maven(directory, target):
     return manifest
 
 
+def stage_test_natives(work):
+    directory = ROOT / 'target/native-test-libraries'
+    if directory.exists():
+        shutil.rmtree(directory)
+    shutil.copytree(work / 'jni/test-libraries', directory)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', default='')
@@ -350,6 +365,7 @@ def main(argv=None):
     parser.add_argument('--report', action='store_true', help='Validate and print all selected manifests as JSON.')
     parser.add_argument('--preflight', action='store_true')
     parser.add_argument('--fetch-ndk', action='store_true')
+    parser.add_argument('--test-natives', action='store_true', help='Build isolated native loader test fixtures.')
     parser.add_argument('--inside', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     pins = json.loads((ROOT / 'native/toolchains.json').read_text())
@@ -364,7 +380,7 @@ def main(argv=None):
         toolchains.build_archive(args.target, source, work, ROOT / 'native', pins, cache)
         if stage == 'jni':
             compile_jni(args.target, source, work, ROOT / 'native', pins, cache,
-                        jni_headers(args.target, pins))
+                        jni_headers(args.target, pins), args.test_natives)
         return 0
     version = config.validate_inputs()
     source = config.prepare_source(args.source)
@@ -400,21 +416,26 @@ def main(argv=None):
                 reports.append(manifest)
                 if args.skip.lower() == 'true' and stage == 'jni' and len(targets) == 1 and target == config.host_target():
                     stage_maven(destination, target)
+                    if args.test_natives:
+                        stage_test_natives(ROOT / '.build/native' / target / identity(inputs))
                 if not args.report:
                     print('Validated:', target, stage)
                 continue
             work = ROOT / '.build/native' / target / identity(inputs)
             work.mkdir(parents=True, exist_ok=True)
+            (work / 'inputs.json').write_text(json.dumps(inputs, indent=2) + '\n')
             if 'image_id' in tools:
-                run_container(target, source, work, tools, stage)
+                run_container(target, source, work, tools, stage, args.test_natives)
             else:
                 toolchains.build_archive(target, source, work, ROOT / 'native', pins, ROOT / '.build/cache')
                 if stage == 'jni':
                     compile_jni(target, source, work, ROOT / 'native', pins, ROOT / '.build/cache',
-                                jni_headers(target, pins))
+                                jni_headers(target, pins), args.test_natives)
             destination = stage_output(target, stage, work, inputs, revision)
             if stage == 'jni' and not args.all and target == config.host_target():
                 stage_maven(destination, target)
+                if args.test_natives:
+                    stage_test_natives(work)
             print('Staged:', target, stage, destination)
     if args.report:
         print(json.dumps({'generated_by': 'scripts/build_native.py --report', 'builds': reports}, indent=2))

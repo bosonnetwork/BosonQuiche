@@ -9,9 +9,10 @@ is optional for applications.
 
 Requirements: JDK 11+, Maven 3.6+, Python 3.9+, Rust 1.99.1, C/C++ compiler,
 CMake 3.22+ and the host platform development tools. The Maven JNI build supports
-macOS and Linux hosts, with integration tests validated on macOS arm64.
-Cross-platform static-library validation is available through the toolchains
-described below.
+macOS and Linux hosts. Cross-platform JNI builds for all six targets use the
+toolchains described below. Runtime regressions cover macOS arm64, Linux
+amd64/arm64 and Android API 33 arm64. Windows libraries are built and inspected;
+Windows runtime coverage is unverified.
 
 ```sh
 mvn -s .mvn/settings.xml verify
@@ -44,8 +45,10 @@ parent POM or dependency on another Boson project.
 Coordinates: `io.bosonnetwork:boson-quiche:0.30.1.1-SNAPSHOT`. The host native
 library is bundled under `native/<os>-<arch>/` in the JAR. The loader extracts
 it into a private temporary directory. An explicit library can be selected
-with `-Dboson.quiche.library=/absolute/path/to/libboson_quiche.dylib` (or `.so`).
-The native version must match 0.30.1. Native quiche/BoringSSL symbols are hidden
+with `-Dboson.quiche.library=/absolute/path/to/libboson_quiche.dylib` (or `.so`
+or `.dll`). The loader verifies the internal binding ABI, exact binding version
+and upstream quiche version before ordinary native calls. `Quiche.version()`
+continues to report the upstream version, 0.30.1. Native quiche/BoringSSL symbols are hidden
 to allow coexistence with other TLS implementations in the JVM.
 
 ## Cross-platform native toolchains
@@ -89,6 +92,13 @@ python3 scripts/build_native.py --target windows-amd64 --stage archive
 python3 scripts/build_native.py --all --stage archive
 ```
 
+Build or inspect the JNI shared libraries for all targets:
+
+```sh
+python3 scripts/build_native.py --all
+python3 scripts/build_native.py --all --inspect
+```
+
 The other IDs are `linux-amd64`, `linux-arm64`, `macos-arm64` and
 `android-arm64`. Linux x64 runs under architecture translation on an ARM64 Mac.
 Outputs, SDKs and dependency caches are under `.build/`.
@@ -113,9 +123,11 @@ particular build environment and belong with generated artifacts under the
 ignored `.build/` directory.
 
 The default stage is `jni`, which compiles the shim with CMake and checks its
-architecture and exported JNI methods. macOS arm64 JNI builds are validated;
-Windows and Android JNI runtime compatibility is not established. JNI headers
-come from the target's JDK or NDK:
+architecture and exported JNI methods. JNI uses version 1.6 on all targets.
+Android is detected before generic Linux and loads `libboson_quiche.so` through
+`System.loadLibrary("boson_quiche")`; applications package it for `arm64-v8a`.
+Desktop libraries retain distinct `native/<classifier>/` resources.
+JNI headers come from the target's JDK or NDK:
 
 - macOS uses `JAVA_HOME`, or the JDK selected by `/usr/libexec/java_home`.
 - Linux Docker images install the OpenJDK 17 development package.
@@ -140,6 +152,33 @@ Run build-tool checks independently with:
 ```sh
 python3 -m unittest discover -s scripts/tests -v
 ```
+
+Maven builds isolated loader-test libraries outside runtime resources. They
+verify rejection of legacy libraries and mismatched binding ABI, binding
+version and upstream version in fresh JVMs. `--test-natives` builds these
+fixtures for a selected target.
+
+Prepare compiled tests and run them on the matching Linux container JVMs:
+
+```sh
+mvn -s .mvn/settings.xml process-test-classes
+python3 scripts/build_native.py --target linux-amd64 --test-natives
+python3 scripts/test_runtime.py --target linux-amd64
+python3 scripts/build_native.py --target linux-arm64 --test-natives
+python3 scripts/test_runtime.py --target linux-arm64
+```
+
+For a running ARM64 Android emulator with API 33 or later:
+
+```sh
+python3 scripts/build_native.py --target android-arm64
+python3 scripts/test_runtime.py --target android-arm64 \
+    --android-sdk /absolute/path/to/android-sdk --serial emulator-5554
+```
+
+The Android runner requires an explicit emulator serial and executes the
+transport regressions on ART with CheckJNI. Desktop loader subprocess tests
+run on the JVMs. Runtime logs and results stay under `.build/`.
 
 ## Packet I/O and zero-copy at the JNI boundary
 

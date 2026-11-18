@@ -285,6 +285,17 @@ class NativeBuildTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Vendored quiche.h'):
             config.validate_inputs(self.root)
 
+    def test_binding_abi_is_a_positive_integer_in_the_pom(self):
+        pom = (config.ROOT / 'pom.xml').read_text()
+        (self.root / 'pom.xml').write_text(pom)
+        self.assertEqual(config.binding_abi(self.root), 1)
+        for invalid in ('0', '-1', 'not-an-integer'):
+            (self.root / 'pom.xml').write_text(pom.replace(
+                '<quiche.binding.abi>1</quiche.binding.abi>',
+                '<quiche.binding.abi>' + invalid + '</quiche.binding.abi>'))
+            with self.assertRaisesRegex(ValueError, 'positive integer'):
+                config.binding_abi(self.root)
+
 
 if __name__ == '__main__':
     unittest.main()
