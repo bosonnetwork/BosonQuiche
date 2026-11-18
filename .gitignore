@@ -22,6 +22,7 @@ replay_pid*
 # Maven files
 target/
 .build/
+.gradle/
 /native/toolchain-proofs.json
 pom.xml.tag
 pom.xml.releaseBackup
@@ -33,6 +34,9 @@ buildNumber.properties
 .mvn/timing.properties
 # https://github.com/takari/maven-wrapper#usage-without-binary-jar
 .mvn/wrapper/maven-wrapper.jar
+
+# Intellij IDEA files
+.idea
 
 # Eclipse m2e generated files
 # Eclipse Core

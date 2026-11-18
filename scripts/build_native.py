@@ -332,7 +332,7 @@ def stage_output(target, stage, work, inputs, revision):
 def stage_maven(directory, target):
     """Restore host resources after Maven clean without deleting native inputs."""
     manifest = validate_manifest(directory, target, 'jni')
-    generated = ROOT / 'target/generated-resources'
+    generated = ROOT / 'target/native-test-resources'
     native = generated / 'native' / TARGETS[target].classifier
     native.mkdir(parents=True, exist_ok=True)
     for name in (TARGETS[target].binary, 'build.json'):

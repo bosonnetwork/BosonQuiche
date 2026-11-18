@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>io.bosonnetwork.test</groupId>
+    <artifactId>quiche-jvm-consumer</artifactId>
+    <version>1</version>
+    <properties>
+        <maven.compiler.release>11</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <boson.version>0.30.1.1-SNAPSHOT</boson.version>
+        <native.classifier>macos-aarch64</native.classifier>
+    </properties>
+    <repositories>
+        <repository>
+            <id>isolated-boson-artifacts</id>
+            <url>${boson.repository}</url>
+        </repository>
+    </repositories>
+    <dependencies>
+        <dependency>
+            <groupId>io.bosonnetwork</groupId>
+            <artifactId>boson-quiche</artifactId>
+            <version>${boson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.bosonnetwork</groupId>
+            <artifactId>boson-quiche-native</artifactId>
+            <version>${boson.version}</version>
+            <classifier>${native.classifier}</classifier>
+            <scope>runtime</scope>
+        </dependency>
+    </dependencies>
+    <build>
+        <directory>${project.basedir}/../../target/consumer-jvm</directory>
+        <sourceDirectory>${project.basedir}/../consumer-common/src/main/java</sourceDirectory>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.5</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <phase>verify</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <target>
+                                <java classname="io.bosonnetwork.quiche.consumer.ConsumerProbe" fork="true" failonerror="true">
+                                    <jvmarg value="-Xcheck:jni"/>
+                                    <classpath refid="maven.runtime.classpath"/>
+                                    <arg value="${project.basedir}/../../src/test/resources"/>
+                                </java>
+                                <pathconvert property="consumer.classpath" refid="maven.runtime.classpath"/>
+                                <echo file="${project.build.directory}/classpath.txt" message="${consumer.classpath}"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+    <profiles>
+        <profile>
+            <id>all-desktop</id>
+            <dependencies>
+                <dependency>
+                    <groupId>io.bosonnetwork</groupId>
+                    <artifactId>boson-quiche-native</artifactId>
+                    <version>${boson.version}</version>
+                    <classifier>linux-x86_64</classifier>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>io.bosonnetwork</groupId>
+                    <artifactId>boson-quiche-native</artifactId>
+                    <version>${boson.version}</version>
+                    <classifier>linux-aarch64</classifier>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>io.bosonnetwork</groupId>
+                    <artifactId>boson-quiche-native</artifactId>
+                    <version>${boson.version}</version>
+                    <classifier>windows-x86_64</classifier>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>io.bosonnetwork</groupId>
+                    <artifactId>boson-quiche-native</artifactId>
+                    <version>${boson.version}</version>
+                    <classifier>windows-aarch64</classifier>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+</project>

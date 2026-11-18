@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.bosonnetwork</groupId>
+        <artifactId>boson-quiche-parent</artifactId>
+        <version>0.30.1.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>boson-quiche-android</artifactId>
+    <packaging>aar</packaging>
+    <name>Boson Quiche Android</name>
+    <dependencies>
+        <dependency>
+            <groupId>io.bosonnetwork</groupId>
+            <artifactId>boson-quiche</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+    <build>
+        <directory>${project.basedir}/../target/android</directory>
+        <plugins>
+            <!-- Use the aar artifact handler/lifecycle; ZIP assembly below replaces legacy SDK goals. -->
+            <plugin>
+                <groupId>com.simpligility.maven.plugins</groupId>
+                <artifactId>android-maven-plugin</artifactId>
+                <version>4.6.0</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <id>default-generate-sources</id>
+                        <phase>none</phase>
+                    </execution>
+                    <execution>
+                        <id>default-emma</id>
+                        <phase>none</phase>
+                    </execution>
+                    <execution>
+                        <id>default-proguard</id>
+                        <phase>none</phase>
+                    </execution>
+                    <execution>
+                        <id>default-aar</id>
+                        <phase>none</phase>
+                    </execution>
+                </executions>
+                <configuration>
+                    <includeLibsJarsFromAar>false</includeLibsJarsFromAar>
+                    <includeLibsJarsFromApklib>false</includeLibsJarsFromApklib>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <classesDirectory>${project.build.directory}/aar-contents</classesDirectory>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>prepare-aar</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <exec executable="python3" failonerror="true">
+                                    <arg value="${project.basedir}/../scripts/package_artifacts.py" />
+                                    <arg value="android" />
+                                    <arg value="--output" />
+                                    <arg value="${project.build.directory}/aar-contents" />
+                                </exec>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>aar-file</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <copy file="${project.build.directory}/${project.build.finalName}.jar" tofile="${project.build.directory}/${project.build.finalName}.aar" />
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

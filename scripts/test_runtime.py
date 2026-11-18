@@ -58,8 +58,10 @@ def prepare(target):
         destination = work / name
         if source.is_dir():
             shutil.copytree(source, destination)
+            # Maven keeps host natives in test resources. Remove them from every
+            # copied directory before injecting the selected target once.
+            shutil.rmtree(destination / 'native', ignore_errors=True)
             if (destination / 'io/bosonnetwork/quiche/Native.class').is_file():
-                shutil.rmtree(destination / 'native', ignore_errors=True)
                 shutil.copytree(staged, destination / 'native' / TARGETS[target].classifier)
         elif source.is_file():
             shutil.copyfile(source, destination)

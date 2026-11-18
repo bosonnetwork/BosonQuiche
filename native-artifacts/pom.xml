@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.bosonnetwork</groupId>
+        <artifactId>boson-quiche-parent</artifactId>
+        <version>0.30.1.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>boson-quiche-native</artifactId>
+    <packaging>pom</packaging>
+    <name>Boson Quiche Desktop Natives</name>
+    <!-- Order host native packaging after API test-resource preparation, including parallel builds. -->
+    <dependencies>
+        <dependency>
+            <groupId>io.bosonnetwork</groupId>
+            <artifactId>boson-quiche</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+    <build>
+        <directory>${project.basedir}/../target/native-artifacts</directory>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>package-native-jars</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <exec executable="python3" failonerror="true">
+                                    <arg value="${project.basedir}/../scripts/package_artifacts.py" />
+                                    <arg value="desktop" />
+                                    <arg value="--output" />
+                                    <arg value="${project.build.directory}" />
+                                </exec>
+                                <property file="${project.build.directory}/selection.properties" />
+                                <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-${native.classifier}.jar" classifier="${native.classifier}" type="jar" />
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+    <profiles>
+        <profile>
+            <id>distribution</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>package-native-jars</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration combine.self="override">
+                                    <target>
+                                        <exec executable="python3" failonerror="true">
+                                            <arg value="${project.basedir}/../scripts/package_artifacts.py" />
+                                            <arg value="desktop" />
+                                            <arg value="--output" />
+                                            <arg value="${project.build.directory}" />
+                                            <arg value="--distribution" />
+                                            <arg value="true" />
+                                        </exec>
+                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-linux-x86_64.jar" classifier="linux-x86_64" type="jar" />
+                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-linux-aarch64.jar" classifier="linux-aarch64" type="jar" />
+                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-macos-aarch64.jar" classifier="macos-aarch64" type="jar" />
+                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-windows-x86_64.jar" classifier="windows-x86_64" type="jar" />
+                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-windows-aarch64.jar" classifier="windows-aarch64" type="jar" />
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

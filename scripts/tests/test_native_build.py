@@ -138,7 +138,7 @@ class NativeBuildTest(unittest.TestCase):
             build.stage_maven(self.directory, 'macos-arm64')
             shutil.rmtree(self.root / 'target')
             build.stage_maven(self.directory, 'macos-arm64')
-        self.assertTrue((self.root / 'target/generated-resources/native/macos-aarch64/libboson_quiche.dylib').is_file())
+        self.assertTrue((self.root / 'target/native-test-resources/native/macos-aarch64/libboson_quiche.dylib').is_file())
 
     def test_cross_environment_drops_macos_and_compiler_settings(self):
         with patch.dict(os.environ, {'SDKROOT': '/host/sdk', 'CC': 'host-cc',

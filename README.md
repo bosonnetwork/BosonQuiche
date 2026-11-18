@@ -5,6 +5,64 @@ Vert.x, ice4j or other Java runtime dependencies are required. The library owns
 no sockets, threads or event loops. QUIC and HTTP/3 are both available; HTTP/3
 is optional for applications.
 
+## Maven artifacts
+
+All artifacts use the same binding version, currently `0.30.1.1-SNAPSHOT`.
+The first three version components identify the upstream quiche release; the
+fourth is the BosonQuiche release number.
+
+| Artifact | Packaging | Contents |
+| --- | --- | --- |
+| `io.bosonnetwork:boson-quiche-parent` | POM | Independent project parent |
+| `io.bosonnetwork:boson-quiche` | JAR | Java API and loader; sources and JavaDoc attachments |
+| `io.bosonnetwork:boson-quiche-native` | Classified JARs | One desktop native library per classifier |
+| `io.bosonnetwork:boson-quiche-android` | AAR | Android ARM64 library and consumer keep rules; depends on the API |
+
+For a desktop JVM, select the API and a native classifier explicitly:
+
+```xml
+<dependency>
+    <groupId>io.bosonnetwork</groupId>
+    <artifactId>boson-quiche</artifactId>
+    <version>0.30.1.1-SNAPSHOT</version>
+</dependency>
+<dependency>
+    <groupId>io.bosonnetwork</groupId>
+    <artifactId>boson-quiche-native</artifactId>
+    <version>0.30.1.1-SNAPSHOT</version>
+    <classifier>macos-aarch64</classifier>
+    <scope>runtime</scope>
+</dependency>
+```
+
+Available desktop classifiers are `linux-x86_64`, `linux-aarch64`,
+`macos-aarch64`, `windows-x86_64` and `windows-aarch64`. Multiple classifiers
+can coexist on the classpath; their native resources, notices and metadata
+have distinct paths. The API POM does not select a native platform.
+
+Android applications use an ordinary transitive AAR dependency:
+
+```groovy
+dependencies {
+    implementation 'io.bosonnetwork:boson-quiche-android:0.30.1.1-SNAPSHOT'
+}
+```
+
+The AAR requires Android API 33 or later and includes
+`jni/arm64-v8a/libboson_quiche.so`. It supplies JNI keep rules for R8/ProGuard
+and obtains Java classes from its API dependency. Consumer builds require no
+Rust, NDK or CMake. Artifact availability depends on the configured Maven
+repository; these coordinates also work with a local file repository.
+
+Desktop native libraries are extracted from `native/<classifier>/` into a
+private temporary directory. An explicit library can be selected with
+`-Dboson.quiche.library=/absolute/path/to/libboson_quiche.dylib` (or `.so` or
+`.dll`). Android uses `System.loadLibrary("boson_quiche")`. The loader checks
+the internal binding ABI, exact binding version and upstream version before
+ordinary native calls. `Quiche.version()` reports the upstream version,
+`0.30.1`. Native quiche/BoringSSL symbols are hidden to allow coexistence with
+other TLS implementations.
+
 ## Build
 
 Requirements: JDK 11+, Maven 3.6+, Python 3.9+, Rust 1.99.1, C/C++ compiler,
@@ -35,21 +93,37 @@ mvn -s .mvn/settings.xml -Dquiche.source=/absolute/path/to/quiche verify
 ```
 
 Sources, native build products and Cargo caches are under ignored `.build/`.
-Maven resources are copied into `target/generated-resources/`; `mvn clean`
-preserves the native inputs. A supplied checkout is not modified.
+Host native test resources are copied into `target/native-test-resources/`;
+`mvn clean` preserves the cached native inputs. A supplied checkout is not modified.
 `-Dnative.skip=true` validates and restores an existing host library without
 rebuilding it. Missing or stale inputs cause an error.
-This project intentionally manages its own dependency versions and has no
-parent POM or dependency on another Boson project.
 
-Coordinates: `io.bosonnetwork:boson-quiche:0.30.1.1-SNAPSHOT`. The host native
-library is bundled under `native/<os>-<arch>/` in the JAR. The loader extracts
-it into a private temporary directory. An explicit library can be selected
-with `-Dboson.quiche.library=/absolute/path/to/libboson_quiche.dylib` (or `.so`
-or `.dll`). The loader verifies the internal binding ABI, exact binding version
-and upstream quiche version before ordinary native calls. `Quiche.version()`
-continues to report the upstream version, 0.30.1. Native quiche/BoringSSL symbols are hidden
-to allow coexistence with other TLS implementations in the JVM.
+The project has its own parent POM and manages its dependency versions
+independently of other Boson projects. Normal `verify` builds the API,
+runs host JNI tests and packages the host native classifier. Build outputs
+are under `target/api/` and `target/native-artifacts/`. The Java API JAR
+contains no native libraries or test fixtures.
+
+After building all six staged JNI targets, package the complete distribution:
+
+```sh
+python3 scripts/build_native.py --all
+mvn -s .mvn/settings.xml -Pdistribution -DskipTests verify
+```
+
+The `distribution` profile adds the Android module and attaches all five
+desktop JARs. It validates the complete staged set before packaging, rejecting
+missing files, changed checksums, incompatible versions/ABI, source or
+dependency pin changes, and incorrect architectures. Prebuilt packaging does
+not require the original compiler or SDK caches to remain installed. Build
+provenance stays in each artifact's `build.json`.
+
+The AAR is produced by Maven using a pinned `aar` lifecycle provider and
+standard ZIP/JAR assembly. Production builds do not invoke Gradle. The AAR's
+published POM retains `aar` packaging and its transitive API dependency.
+Its output is `target/android/boson-quiche-android-<version>.aar`.
+See [consumer verification](test-tooling/README.md) for isolated repository,
+JVM and minified Android consumer checks.
 
 ## Cross-platform native toolchains
 
