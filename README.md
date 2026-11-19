@@ -66,7 +66,8 @@ other TLS implementations.
 ## Build
 
 Requirements: JDK 11+, Maven 3.6+, Python 3.9+, Rust 1.99.1, C/C++ compiler,
-CMake 3.22+ and the host platform development tools. The Maven JNI build supports
+CMake 3.22+ and the host platform development tools. Release bundling and
+publishing require Maven 3.9.2+. The Maven JNI build supports
 macOS and Linux hosts. Cross-platform JNI builds for all six targets use the
 toolchains described below. Runtime regressions cover macOS arm64, Linux
 amd64/arm64 and Android API 33 arm64. Windows libraries are built and inspected;
@@ -119,11 +120,31 @@ not require the original compiler or SDK caches to remain installed. Build
 provenance stays in each artifact's `build.json`.
 
 The AAR is produced by Maven using a pinned `aar` lifecycle provider and
-standard ZIP/JAR assembly. Production builds do not invoke Gradle. The AAR's
+standard ZIP/JAR assembly. Maven creates and attaches the desktop classifier
+JARs and Android source/documentation JARs. Python validates native inputs and
+stages their resources. Production builds do not invoke Gradle. The AAR's
 published POM retains `aar` packaging and its transitive API dependency.
-Its output is `android/target/boson-quiche-android-<version>.aar`.
+Its output is `android/target/boson-quiche-android-<version>.aar`, with source
+and documentation companion JARs for Maven Central.
 See [consumer verification](test-tooling/README.md) for isolated repository,
 JVM and minified Android consumer checks.
+
+## Release preparation
+
+Build and record the complete local distribution with:
+
+```sh
+python3 scripts/build_all.py --targets all
+```
+
+After setting a matching release version before building, freeze the exact
+artifact files with `python3 scripts/prepare_release.py --version 0.30.1.1`.
+Preparation rejects snapshots, mixed versions, stale inputs and incomplete
+build validation. Standard Maven packaging, signing and publishing check that
+the outputs match the frozen artifact checksums;
+publication waits for manual review in the Portal. Normal builds remain
+credential-free. See [RELEASING.md](RELEASING.md) for validation evidence,
+immutable outputs, disposable-key tests and the user-run upload command.
 
 ## Cross-platform native toolchains
 

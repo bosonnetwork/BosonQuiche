@@ -39,7 +39,8 @@ repository, including plugin repositories. The fresh consumer cache cannot
 supply a previously installed BosonQuiche artifact. To include all five desktop
 classifiers and verify they coexist, run the same command with `-Pall-desktop`
 and omit `-Dnative.classifier`. The loader selects the running host's library.
-The artifact checker also verifies that classifier resource names are disjoint.
+The artifact checker also verifies that classifier payload resource names are
+disjoint; standard JAR manifests and directory entries are allowed.
 
 ## Android
 
@@ -91,3 +92,15 @@ physical device serials and verifies the emulator flag, SDK level and ABI
 before installation. It reads only the consumer process's result log. A
 successful run prints `BosonQuiche packaged consumer PASS` and writes the
 APK checksum and emulator properties when `--report` is supplied.
+
+
+## Frozen release tooling
+
+The shared release tests live under `scripts/tests/`; run them with
+`python3 -m unittest discover -s scripts/tests -v`. The explicit
+`python3 scripts/test_release_workflow.py` command tests Maven attachment and
+GPG signing using synthetic native inputs, dummy settings and a disposable key.
+Maven 3.9.2+ and Central's bundle-only profile produce the real Central ZIP
+without uploading. Python verifies its body hashes, signatures and sidecars,
+and the tests reject attempts to publish those fixtures.
+See [RELEASING.md](../RELEASING.md) for the evidence contract and release flow.

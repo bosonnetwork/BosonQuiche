@@ -10,6 +10,7 @@
     <artifactId>boson-quiche-android</artifactId>
     <packaging>aar</packaging>
     <name>Boson Quiche Android</name>
+    <description>Android ARM64 JNI companion for the BosonQuiche Java API.</description>
     <dependencies>
         <dependency>
             <groupId>io.bosonnetwork</groupId>
@@ -17,6 +18,7 @@
             <version>${project.version}</version>
         </dependency>
     </dependencies>
+    <url>https://github.com/bosonnetwork/BosonQuiche</url>
     <build>
         <plugins>
             <!-- Use the aar artifact handler/lifecycle; ZIP assembly below replaces legacy SDK goals. -->
@@ -50,10 +52,86 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>android-source-resources</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/source-contents</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/src/main</directory>
+                                    <targetPath>src/main</targetPath>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/../native/src/main/c</directory>
+                                    <targetPath>src/main/c</targetPath>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/..</directory>
+                                    <includes>
+                                        <include>LICENSE</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/src/companion</directory>
+                                    <filtering>true</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>android-documentation-resources</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/documentation-contents</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/src/companion</directory>
+                                    <filtering>true</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
                     <classesDirectory>${project.build.directory}/aar-contents</classesDirectory>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>android-sources</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classesDirectory>${project.build.directory}/source-contents</classesDirectory>
+                            <classifier>sources</classifier>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>android-documentation</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classesDirectory>${project.build.directory}/documentation-contents</classesDirectory>
+                            <classifier>javadoc</classifier>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -73,6 +151,7 @@
                                     <arg value="--output" />
                                     <arg value="${project.build.directory}/aar-contents" />
                                 </exec>
+                                <jar destfile="${project.build.directory}/aar-contents/classes.jar" modificationtime="${project.build.outputTimestamp}" />
                             </target>
                         </configuration>
                     </execution>

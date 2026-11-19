@@ -22,7 +22,6 @@
 
 """Reject stale distribution inputs and verify native artifact boundaries."""
 
-import io
 import json
 from pathlib import Path
 import re
@@ -31,7 +30,6 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build_native as build
@@ -122,37 +120,40 @@ class PackagingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Truncated'):
             packaging.machine(binary)
 
-    def test_all_targets_validate_before_any_archive_is_written(self):
+    def test_all_targets_validate_before_any_resource_is_staged(self):
         output = self.root / 'artifacts'
         with patch.object(packaging, 'validate', side_effect=[(self.stage, self.manifest), ValueError('missing')]):
             with self.assertRaisesRegex(ValueError, 'missing'):
                 packaging.desktop(['macos-arm64', 'windows-arm64'], output)
         self.assertFalse(output.exists())
 
-    def test_desktop_jar_contains_only_target_native_and_notices(self):
+    def test_desktop_resources_contain_only_target_native_and_notices(self):
         output = self.root / 'artifacts'
         with patch.object(packaging, 'validate', return_value=(self.stage, self.manifest)):
             packaging.desktop(['macos-arm64'], output)
-        artifact = next(output.glob('*.jar'))
-        first = artifact.read_bytes()
+        resources = output / 'macos-aarch64'
+        names = {file.relative_to(resources).as_posix() for file in resources.rglob('*') if file.is_file()}
+        self.assertIn('native/macos-aarch64/libboson_quiche.dylib', names)
+        self.assertIn('META-INF/boson-quiche-native/macos-aarch64/LICENSE', names)
+        self.assertTrue(all(name.startswith(('native/macos-aarch64/',
+            'META-INF/boson-quiche-native/macos-aarch64/')) for name in names))
+        self.assertFalse(list(output.rglob('*.jar')))
+
+    def test_reselecting_host_removes_other_targets_from_resource_staging(self):
+        output = self.root / 'artifacts'
+        stale = output / 'windows-aarch64/native/stale.dll'
+        stale.parent.mkdir(parents=True)
+        stale.write_bytes(b'old target')
         with patch.object(packaging, 'validate', return_value=(self.stage, self.manifest)):
             packaging.desktop(['macos-arm64'], output)
-        self.assertEqual(first, artifact.read_bytes())
-        with zipfile.ZipFile(artifact) as archive:
-            names = archive.namelist()
-            self.assertIn('native/macos-aarch64/libboson_quiche.dylib', names)
-            self.assertIn('META-INF/boson-quiche-native/macos-aarch64/LICENSE', names)
-            self.assertTrue(all(name.startswith(('native/macos-aarch64/',
-                'META-INF/boson-quiche-native/macos-aarch64/')) for name in names))
-            self.assertFalse(any(name.endswith('.class') or 'test-libraries' in name for name in names))
+        self.assertEqual(['macos-aarch64'], [path.name for path in output.iterdir()])
 
-    def test_android_has_empty_classes_and_transitive_api_layout(self):
+    def test_android_stages_native_resources_without_building_jars(self):
         (self.stage / 'libboson_quiche.so').write_bytes(b'fixture Android library')
         output = self.root / 'aar'
         with patch.object(packaging, 'validate', return_value=(self.stage, self.manifest)):
             packaging.android(output)
-        with zipfile.ZipFile(io.BytesIO((output / 'classes.jar').read_bytes())) as classes:
-            self.assertEqual([], classes.namelist())
+        self.assertFalse(list(output.rglob('*.jar')))
         self.assertEqual(b'fixture Android library', (output / 'jni/arm64-v8a/libboson_quiche.so').read_bytes())
         self.assertIn('minSdkVersion="33"', (output / 'AndroidManifest.xml').read_text())
         self.assertTrue((output / 'proguard.txt').is_file())

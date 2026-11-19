@@ -42,8 +42,8 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def check(repository):
-    version = config.validate_inputs()
+def check(repository, root=config.ROOT):
+    version = config.validate_inputs(root)
     base = repository / 'io/bosonnetwork'
 
     def artifact(name, suffix):
@@ -80,7 +80,11 @@ def check(repository):
         require(not any(name.startswith('native/') or name.endswith(('.so', '.dylib', '.dll', '.pem'))
                         or 'test-libraries' in name for name in names), 'API contains native libraries or test fixtures')
         metadata = archive.read('META-INF/boson-quiche.properties').decode()
-        require('binding.version=' + version in metadata and 'binding.abi=' + str(config.binding_abi()) in metadata,
+        properties = dict(line.split('=', 1) for line in metadata.splitlines()
+                          if '=' in line and not line.startswith('#'))
+        require(properties.get('binding.version') == version
+                and properties.get('binding.abi') == str(config.binding_abi(root))
+                and properties.get('quiche.version') == config.TAG,
                 'API binding metadata mismatch')
     for suffix, required in (('-sources.jar', 'io/bosonnetwork/quiche/Quiche.java'),
                               ('-javadoc.jar', 'io/bosonnetwork/quiche/Quiche.html')):
@@ -92,7 +96,7 @@ def check(repository):
 
     def payload(archive, binary, manifest_name, target):
         manifest = json.loads(archive.read(manifest_name))
-        require(manifest['binding_version'] == version and manifest['binding_abi'] == config.binding_abi()
+        require(manifest['binding_version'] == version and manifest['binding_abi'] == config.binding_abi(root)
                 and manifest['quiche_version'] == config.TAG, 'Native version mismatch: ' + target)
         checksum = hashlib.sha256(archive.read(binary)).hexdigest()
         require(manifest['files'][config.TARGETS[target].binary] == checksum, 'Native payload changed: ' + target)
@@ -102,12 +106,13 @@ def check(repository):
         if target.startswith('android-'):
             continue
         with zipfile.ZipFile(artifact('boson-quiche-native', '-' + spec.classifier + '.jar')) as archive:
-            names = set(archive.namelist())
-            require(not resources.intersection(names), 'Duplicate resources across desktop classifiers')
-            resources.update(names)
+            names = {item.filename for item in archive.infolist() if not item.is_dir()}
+            payload_names = names - {'META-INF/MANIFEST.MF'}
+            require(not resources.intersection(payload_names), 'Duplicate resources across desktop classifiers')
+            resources.update(payload_names)
             native = 'native/' + spec.classifier + '/'
             notices = 'META-INF/boson-quiche-native/' + spec.classifier + '/'
-            require(all(name.startswith((native, notices)) and not name.endswith('.class') for name in names),
+            require(all(name.startswith((native, notices)) and not name.endswith('.class') for name in payload_names),
                     'Unexpected native JAR content: ' + target)
             require(notices + 'LICENSE' in names and notices + 'NOTICE' in names, 'Missing native notices')
             payload(archive, native + spec.binary, native + 'build.json', target)
@@ -116,7 +121,8 @@ def check(repository):
         require(not any(name.endswith('.class') or name.startswith('libs/') for name in archive.namelist()),
                 'Android AAR duplicates API classes')
         with zipfile.ZipFile(io.BytesIO(archive.read('classes.jar'))) as classes:
-            require(not classes.namelist(), 'Android classes.jar must be empty')
+            require(all(item.is_dir() or item.filename == 'META-INF/MANIFEST.MF'
+                        for item in classes.infolist()), 'Android classes.jar must contain no classes or application resources')
         manifest = ET.fromstring(archive.read('AndroidManifest.xml'))
         minimum = manifest.find('uses-sdk').get('{http://schemas.android.com/apk/res/android}minSdkVersion')
         require(minimum == '33', 'Android minimum SDK mismatch')
@@ -126,7 +132,11 @@ def check(repository):
         require(prefix + 'LICENSE' in archive.namelist(), 'Missing Android notices')
         payload(archive, 'jni/arm64-v8a/libboson_quiche.so', prefix + 'build.json', 'android-arm64')
 
-    return {'status': 'passed', 'binding_version': version, 'binding_abi': config.binding_abi(),
+    for suffix in ('-sources.jar', '-javadoc.jar'):
+        with zipfile.ZipFile(artifact('boson-quiche-android', suffix)) as companion:
+            require('README.md' in companion.namelist(), 'Missing Android source/documentation pointer')
+
+    return {'status': 'passed', 'binding_version': version, 'binding_abi': config.binding_abi(root),
             'desktop_classifier_resources_are_disjoint': True, 'native_payload_sha256': libraries}
 
 

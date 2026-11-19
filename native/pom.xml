@@ -10,6 +10,7 @@
     <artifactId>boson-quiche-native</artifactId>
     <packaging>pom</packaging>
     <name>Boson Quiche Desktop Natives</name>
+    <description>Prebuilt desktop JNI libraries for BosonQuiche.</description>
     <!-- Order host native packaging after API test-resource preparation, including parallel builds. -->
     <dependencies>
         <dependency>
@@ -20,6 +21,7 @@
             <optional>true</optional>
         </dependency>
     </dependencies>
+    <url>https://github.com/bosonnetwork/BosonQuiche</url>
     <build>
         <plugins>
             <plugin>
@@ -27,8 +29,8 @@
                 <artifactId>maven-antrun-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>package-native-jars</id>
-                        <phase>package</phase>
+                        <id>prepare-native-resources</id>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>run</goal>
                         </goals>
@@ -38,11 +40,76 @@
                                     <arg value="${project.basedir}/scripts/package_artifacts.py" />
                                     <arg value="desktop" />
                                     <arg value="--output" />
-                                    <arg value="${project.build.directory}" />
+                                    <arg value="${project.build.directory}/native-resources" />
                                 </exec>
-                                <property file="${project.build.directory}/selection.properties" />
-                                <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-${native.classifier}.jar" classifier="${native.classifier}" type="jar" />
                             </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <skipIfEmpty>true</skipIfEmpty>
+                    <archive>
+                        <addMavenDescriptor>false</addMavenDescriptor>
+                    </archive>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>jar-linux-x86_64</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classesDirectory>${project.build.directory}/native-resources/linux-x86_64</classesDirectory>
+                            <classifier>linux-x86_64</classifier>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>jar-linux-aarch64</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classesDirectory>${project.build.directory}/native-resources/linux-aarch64</classesDirectory>
+                            <classifier>linux-aarch64</classifier>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>jar-macos-aarch64</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classesDirectory>${project.build.directory}/native-resources/macos-aarch64</classesDirectory>
+                            <classifier>macos-aarch64</classifier>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>jar-windows-x86_64</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classesDirectory>${project.build.directory}/native-resources/windows-x86_64</classesDirectory>
+                            <classifier>windows-x86_64</classifier>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>jar-windows-aarch64</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classesDirectory>${project.build.directory}/native-resources/windows-aarch64</classesDirectory>
+                            <classifier>windows-aarch64</classifier>
                         </configuration>
                     </execution>
                 </executions>
@@ -52,6 +119,11 @@
     <profiles>
         <profile>
             <id>distribution</id>
+            <activation>
+                <property>
+                    <name>release.directory</name>
+                </property>
+            </activation>
             <build>
                 <plugins>
                     <plugin>
@@ -59,8 +131,8 @@
                         <artifactId>maven-antrun-plugin</artifactId>
                         <executions>
                             <execution>
-                                <id>package-native-jars</id>
-                                <phase>package</phase>
+                                <id>prepare-native-resources</id>
+                                <phase>prepare-package</phase>
                                 <goals>
                                     <goal>run</goal>
                                 </goals>
@@ -70,15 +142,10 @@
                                             <arg value="${project.basedir}/scripts/package_artifacts.py" />
                                             <arg value="desktop" />
                                             <arg value="--output" />
-                                            <arg value="${project.build.directory}" />
+                                            <arg value="${project.build.directory}/native-resources" />
                                             <arg value="--distribution" />
                                             <arg value="true" />
                                         </exec>
-                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-linux-x86_64.jar" classifier="linux-x86_64" type="jar" />
-                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-linux-aarch64.jar" classifier="linux-aarch64" type="jar" />
-                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-macos-aarch64.jar" classifier="macos-aarch64" type="jar" />
-                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-windows-x86_64.jar" classifier="windows-x86_64" type="jar" />
-                                        <attachartifact file="${project.build.directory}/${project.artifactId}-${project.version}-windows-aarch64.jar" classifier="windows-aarch64" type="jar" />
                                     </target>
                                 </configuration>
                             </execution>

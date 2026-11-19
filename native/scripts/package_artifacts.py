@@ -20,16 +20,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Validate prebuilt JNI inputs and prepare native Maven artifacts."""
+"""Validate prebuilt JNI inputs and stage their resources for Maven packaging."""
 
 import argparse
-import io
 import json
 from pathlib import Path
 import shutil
 import struct
 import sys
-import zipfile
 
 import build_native as build
 import native_config as config
@@ -57,22 +55,22 @@ def machine(path):
     raise ValueError('Unsupported native executable: ' + str(path))
 
 
-def validate(target, staged=None):
-    directory = staged or ROOT / '.build/staged' / target / 'jni'
+def validate(target, staged=None, root=ROOT):
+    directory = staged or root / '.build/staged' / target / 'jni'
     manifest = build.validate_manifest(directory, target, 'jni')
     inputs = manifest['inputs']
-    expected = {'binding_version': config.validate_inputs(), 'binding_abi': config.binding_abi(),
+    expected = {'binding_version': config.validate_inputs(root), 'binding_abi': config.binding_abi(root),
                 'quiche_version': config.TAG, 'features': config.FEATURES,
                 'quiche_tag': config.TAG, 'quiche_archive_sha256': config.ARCHIVE_SHA256,
                 'quiche_archive_url': config.ARCHIVE_URL,
                 'rust_target': TARGETS[target].rust, 'classifier': TARGETS[target].classifier,
                 'binary_name': TARGETS[target].binary, 'baseline': TARGETS[target].baseline,
-                'toolchains': json.loads((ROOT / 'native/toolchains.json').read_text()),
-                'cargo_lock_sha256': digest(ROOT / 'native/Cargo.lock'),
-                'cmake_sha256': digest(ROOT / 'native/CMakeLists.txt'),
-                'jni_declarations_sha256': digest(ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
-                'jni_sources_sha256': identity({str(path.relative_to(ROOT / 'native')): digest(path)
-                    for path in sorted((ROOT / 'native/src/main/c').glob('*')) if path.is_file()})}
+                'toolchains': json.loads((root / 'native/toolchains.json').read_text()),
+                'cargo_lock_sha256': digest(root / 'native/Cargo.lock'),
+                'cmake_sha256': digest(root / 'native/CMakeLists.txt'),
+                'jni_declarations_sha256': digest(root / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
+                'jni_sources_sha256': identity({str(path.relative_to(root / 'native')): digest(path)
+                    for path in sorted((root / 'native/src/main/c').glob('*')) if path.is_file()})}
     for key, value in expected.items():
         if inputs.get(key) != value:
             raise ValueError('Stale native input ' + target + ': ' + key)
@@ -86,18 +84,6 @@ def validate(target, staged=None):
     return directory, manifest
 
 
-def zip_bytes(files):
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for name, content in sorted(files.items()):
-            entry = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
-            entry.create_system = 3
-            entry.external_attr = 0o100644 << 16
-            entry.compress_type = zipfile.ZIP_DEFLATED
-            archive.writestr(entry, content)
-    return output.getvalue()
-
-
 def native_notices(directory, prefix):
     files = {prefix + '/LICENSE': (ROOT / 'LICENSE').read_bytes(),
              prefix + '/NOTICE': (ROOT / 'NOTICE').read_bytes()}
@@ -108,21 +94,26 @@ def native_notices(directory, prefix):
 
 
 def desktop(targets, output):
-    # Validate the complete requested set before writing any artifact.
+    # Validate every selected native input before replacing any staged resources.
     validated = {target: validate(target) for target in targets}
-    output.mkdir(parents=True, exist_ok=True)
-    version = config.validate_inputs()
+    temporary = output.with_name(output.name + '.assembling')
+    if temporary.exists():
+        shutil.rmtree(temporary)
+    temporary.mkdir(parents=True)
     for target, (directory, _) in validated.items():
         spec = TARGETS[target]
         prefix = 'native/' + spec.classifier
         files = {prefix + '/' + spec.binary: (directory / spec.binary).read_bytes(),
                  prefix + '/build.json': (directory / 'build.json').read_bytes()}
         files.update(native_notices(directory, 'META-INF/boson-quiche-native/' + spec.classifier))
-        artifact = output / ('boson-quiche-native-' + version + '-' + spec.classifier + '.jar')
-        artifact.write_bytes(zip_bytes(files))
-        print('Packaged:', artifact)
-    if len(targets) == 1:
-        (output / 'selection.properties').write_text('native.classifier=' + TARGETS[targets[0]].classifier + '\n')
+        for name, content in files.items():
+            file = temporary / spec.classifier / name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(content)
+    if output.exists():
+        shutil.rmtree(output)
+    temporary.replace(output)
+    print('Prepared desktop native resources:', output)
 
 
 def android(output):
@@ -133,7 +124,7 @@ def android(output):
     temporary.mkdir(parents=True)
     files = {'AndroidManifest.xml': (ROOT / 'android/src/main/AndroidManifest.xml').read_bytes(),
              'proguard.txt': (ROOT / 'android/src/main/proguard.txt').read_bytes(),
-             'classes.jar': zip_bytes({}), 'R.txt': b'',
+             'R.txt': b'',
              'jni/arm64-v8a/libboson_quiche.so': (directory / 'libboson_quiche.so').read_bytes(),
              'META-INF/boson-quiche-native/android-aarch64/build.json': (directory / 'build.json').read_bytes()}
     files.update(native_notices(directory, 'META-INF/boson-quiche-native/android-aarch64'))
@@ -159,10 +150,10 @@ def main():
             validate(target)
             print('Validated native packaging input:', target)
     elif args.output is None:
-        parser.error('--output is required for archive preparation')
+        parser.error('--output is required for resource preparation')
     elif args.kind == 'desktop':
         desktop(DESKTOP if args.distribution == 'true' else targets, args.output.resolve())
-    else:
+    elif args.kind == 'android':
         android(args.output.resolve())
 
 
@@ -170,6 +161,6 @@ if __name__ == '__main__':
     try:
         main()
     except (OSError, ValueError, KeyError) as error:
-        print('Native artifact packaging failed:', error, file=sys.stderr)
+        print('Native resource preparation failed:', error, file=sys.stderr)
         sys.exit(1)
 

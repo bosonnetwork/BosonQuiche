@@ -14,6 +14,21 @@
             <url>https://opensource.org/license/mit</url>
         </license>
     </licenses>
+    <developers>
+        <developer>
+            <id>boson-network-dev</id>
+            <name>Boson Network</name>
+            <email>support@bosonnetwork.io</email>
+            <organization>BosonNetwork</organization>
+            <organizationUrl>https://github.com/bosonnetwork</organizationUrl>
+        </developer>
+    </developers>
+    <scm child.scm.connection.inherit.append.path="false" child.scm.developerConnection.inherit.append.path="false" child.scm.url.inherit.append.path="false">
+        <connection>scm:git:https://github.com/bosonnetwork/BosonQuiche.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/bosonnetwork/BosonQuiche.git</developerConnection>
+        <url>https://github.com/bosonnetwork/BosonQuiche</url>
+        <tag>v${project.version}</tag>
+    </scm>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>11</maven.compiler.release>
@@ -83,14 +98,31 @@
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>3.1.4</version>
                 </plugin>
+                <plugin>
+                    <groupId>org.sonatype.central</groupId>
+                    <artifactId>central-publishing-maven-plugin</artifactId>
+                    <version>0.12.0</version>
+                    <configuration>
+                        <publishingServerId>central</publishingServerId>
+                        <autoPublish>false</autoPublish>
+                        <waitUntil>validated</waitUntil>
+                        <deploymentName>BosonQuiche ${project.version}</deploymentName>
+                        <failOnBuildFailure>true</failOnBuildFailure>
+                        <ignorePublishedComponents>false</ignorePublishedComponents>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
-
         <defaultGoal>package</defaultGoal>
     </build>
     <profiles>
         <profile>
             <id>distribution</id>
+            <activation>
+                <property>
+                    <name>release.directory</name>
+                </property>
+            </activation>
             <modules>
                 <module>android</module>
             </modules>
@@ -99,10 +131,10 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-antrun-plugin</artifactId>
-                        <inherited>false</inherited>
                         <executions>
                             <execution>
                                 <id>validate-native-distribution</id>
+                                <inherited>false</inherited>
                                 <phase>validate</phase>
                                 <goals>
                                     <goal>run</goal>
@@ -119,6 +151,182 @@
                                 </configuration>
                             </execution>
                         </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>release-signing</id>
+            <activation>
+                <property>
+                    <name>release.directory</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>validate-prepared-release</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="python3" failonerror="true">
+                                            <arg value="${maven.multiModuleProjectDirectory}/scripts/verify_release.py" />
+                                            <arg value="--directory" />
+                                            <arg value="${release.directory}" />
+                                            <arg value="--maven-cli" />
+                                            <arg value="--flag" />
+                                            <arg value="skipTests=${skipTests}" />
+                                            <arg value="--flag" />
+                                            <arg value="maven.test.skip=${maven.test.skip}" />
+                                            <arg value="--flag" />
+                                            <arg value="maven.javadoc.skip=${maven.javadoc.skip}" />
+                                            <arg value="--flag" />
+                                            <arg value="maven.source.skip=${maven.source.skip}" />
+                                            <arg value="--flag" />
+                                            <arg value="gpg.skip=${gpg.skip}" />
+                                            <arg value="--flag" />
+                                            <arg value="skipPublishing=${skipPublishing}" />
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                            <!-- All package-phase attachments exist before verify-phase signing. -->
+                            <execution>
+                                <id>verify-release-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="python3" failonerror="true">
+                                            <arg value="${maven.multiModuleProjectDirectory}/scripts/verify_release.py" />
+                                            <arg value="--directory" />
+                                            <arg value="${release.directory}" />
+                                            <arg value="--built-module" />
+                                            <arg value="${project.artifactId}" />
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>verify-release-before-install</id>
+                                <phase>install</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="python3" failonerror="true">
+                                            <arg value="${maven.multiModuleProjectDirectory}/scripts/verify_release.py" />
+                                            <arg value="--directory" />
+                                            <arg value="${release.directory}" />
+                                            <arg value="--built-module" />
+                                            <arg value="${project.artifactId}" />
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.8</version>
+                        <configuration>
+                            <bestPractices>true</bestPractices>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>release-bundle</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>require-prepared-bundle</id>
+                                <inherited>false</inherited>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="python3" failonerror="true">
+                                            <arg value="${project.basedir}/scripts/verify_release.py" />
+                                            <arg value="--directory" />
+                                            <arg value="${release.directory}" />
+                                            <arg value="--maven-cli" />
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <skipUpload>true</skipUpload>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>publish</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>require-release-qualification</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="python3" failonerror="true">
+                                            <arg value="${maven.multiModuleProjectDirectory}/scripts/verify_release.py" />
+                                            <arg value="--directory" />
+                                            <arg value="${release.directory}" />
+                                            <arg value="--publication" />
+                                            <arg value="--maven-cli" />
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <extensions>true</extensions>
                     </plugin>
                 </plugins>
             </build>
