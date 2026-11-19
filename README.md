@@ -70,8 +70,10 @@ CMake 3.22+ and the host platform development tools. Release bundling and
 publishing require Maven 3.9.2+. The Maven JNI build supports
 macOS and Linux hosts. Cross-platform JNI builds for all six targets use the
 toolchains described below. Runtime regressions cover macOS arm64, Linux
-amd64/arm64 and Android API 33 arm64. Windows libraries are built and inspected;
-Windows runtime coverage is unverified.
+amd64/arm64 and Android arm64 on API 33 with 4 KB pages and API 37 with 16 KB
+pages. Android checks include the R8-minified packaged consumer and CheckJNI.
+Windows ARM64 and x64 JVMs also pass all 47 JNI tests and the packaged consumer.
+The Windows x64 runtime checks use x64 emulation on Windows ARM64.
 
 ```sh
 mvn -s .mvn/settings.xml verify
@@ -145,6 +147,23 @@ the outputs match the frozen artifact checksums;
 publication waits for manual review in the Portal. Normal builds remain
 credential-free. See [RELEASING.md](RELEASING.md) for validation evidence,
 immutable outputs, disposable-key tests and the user-run upload command.
+
+## Distribution verification
+
+Packaged JNI qualification runs the 47-case suite and transport/HTTP3 consumer
+against the installed JARs on macOS ARM64 and Linux x64/ARM64. The minified
+Android consumer is tested with CheckJNI on actual 4 KB and 16 KB page-size
+emulators. Native ELF and APK alignment are checked separately from runtime
+results. Matching Windows JVM results are required before full release
+qualification; cross-compilation alone does not supply them.
+
+See [consumer verification](test-tooling/README.md#complete-packaged-jni-qualification)
+for the commands, portable Windows kits and artifact-bound evidence reports.
+
+`mvn clean` removes Maven outputs. Rebuildable target caches are under
+`.build/native/<target>` and `.build/staged/<target>`; removing these forces a
+fresh target build. Shared SDK/source/Cargo downloads are under `.build/cache`.
+Release candidates and qualification evidence use separate directories.
 
 ## Cross-platform native toolchains
 

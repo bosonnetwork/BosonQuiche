@@ -243,10 +243,8 @@ def main():
     for evidence in args.evidence:
         data = json.loads(evidence.read_text())
         target = data.get('platform')
-        if target in records:
-            records[target]['runtime'] = runtime(data, all_targets[target], evidence)
-        else:
-            name = data.get('check')
+        name = data.get('check')
+        if name is not None:
             release.require(
                 name in ('jvm-consumers', 'android-r8', 'android-16k'),
                 'Unknown qualification evidence',
@@ -263,6 +261,10 @@ def main():
                     'sha256': config.digest(evidence),
                 },
             )
+        elif target in records:
+            records[target]['runtime'] = runtime(data, all_targets[target], evidence)
+        else:
+            raise ValueError('Unknown runtime or qualification evidence')
     release.require(
         release.source_fingerprint() == initial,
         'Source inputs changed during validation',

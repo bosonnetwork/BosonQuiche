@@ -37,6 +37,7 @@ public final class ConsumerActivity extends Activity {
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
+        String runId = getIntent().getStringExtra("run-id");
         TextView status = new TextView(this);
         setContentView(status);
         new Thread(() -> {
@@ -50,10 +51,10 @@ public final class ConsumerActivity extends Activity {
                 }
 
                 ConsumerProbe.run(certificates);
-                result = "BosonQuiche packaged consumer PASS";
+                result = "BosonQuiche packaged consumer PASS " + runId;
                 Log.i("BosonQuicheConsumer", result);
             } catch (Throwable error) {
-                result = "BosonQuiche packaged consumer FAIL: " + error;
+                result = "BosonQuiche packaged consumer FAIL " + runId + ": " + error;
                 Log.e("BosonQuicheConsumer", result, error);
             }
 

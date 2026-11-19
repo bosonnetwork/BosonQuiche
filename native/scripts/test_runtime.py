@@ -31,6 +31,7 @@ import shutil
 import subprocess
 import sys
 import zipfile
+import xml.etree.ElementTree as ET
 
 import build_native as build
 from native_config import ROOT, TARGETS, digest
@@ -71,15 +72,44 @@ def prepare(target):
     return work, manifest, entries
 
 
+def loader_fixtures(target, work, manifest):
+    """Build tiny loader fixtures with the pinned target compiler, independent of Rust caches."""
+    builder = manifest['inputs']['builder']
+    windows = target.startswith('windows-')
+    command = ['docker', 'run', '--rm', '--platform', 'linux/' + builder['image_arch'],
+               '--mount', f'type=bind,source={work},target=/runtime',
+               '--mount', f'type=bind,source={ROOT / "native/src/test/c"},target=/fixtures,readonly',
+               '--env', 'BOSON_VERSION=' + manifest['binding_version'],
+               '--env', 'BOSON_ABI=' + str(manifest['binding_abi'])]
+    extra = ''
+    if windows:
+        pins = json.loads((ROOT / 'native/toolchains.json').read_text())
+        sdk = 'xwin-llvm20-sdk' + pins['windows_sdk'] + '-crt' + pins['windows_crt']
+        command += ['--mount', f'type=bind,source={ROOT / ".build/cache"},target=/cache,readonly']
+        extra = 'export PATH=/cache/' + sdk + ':$PATH; '
+        toolchain = '/cache/' + sdk + '/cmake/clang-cl/' + TARGETS[target].rust + '-toolchain.cmake'
+        extra += 'export CMAKE_TOOLCHAIN_FILE=' + toolchain + '; '
+    generator = 'Ninja' if windows else 'Unix Makefiles'
+    script = extra + ('cmake -S /fixtures -B /runtime/loader-build -G "' + generator + '" '
+              '-DCMAKE_BUILD_TYPE=Release "-DJNI_INCLUDE=$JAVA_HOME/include" '
+              '-DJNI_PLATFORM=' + TARGETS[target].jni + ' "-DBOSON_BINDING_VERSION=$BOSON_VERSION" '
+              '"-DBOSON_BINDING_ABI=$BOSON_ABI" && cmake --build /runtime/loader-build')
+    run(*command, builder['image_id'], 'sh', '-c', script)
+    return work / 'test-libraries'
+
+
 def linux(target, work, manifest, entries):
     native_work = ROOT / '.build/native' / target / manifest['input_identity']
-    shutil.copytree(native_work / 'jni/test-libraries', work / 'test-libraries')
+    if (native_work / 'jni/test-libraries').is_dir():
+        shutil.copytree(native_work / 'jni/test-libraries', work / 'test-libraries')
+    else:
+        loader_fixtures(target, work, manifest)
     builder = manifest['inputs']['builder']
     run('docker', 'run', '--rm', '--platform', 'linux/' + builder['image_arch'],
         '--mount', f'type=bind,source={work},target=/runtime', '--workdir', '/runtime',
         builder['image_id'], 'java', '-Xcheck:jni',
         '-Dboson.quiche.test.libraries=/runtime/test-libraries',
-        '-cp', ':'.join('/runtime/' + entry for entry in entries), 'io.bosonnetwork.quiche.NativeSuite')
+        '-cp', ':'.join('/runtime/' + entry for entry in entries), 'io.bosonnetwork.quiche.NativeSuite', '--report', '/runtime/result.xml')
 
 
 def android(work, entries, sdk, serial):
@@ -143,7 +173,15 @@ def main():
         android(work, entries, args.android_sdk.resolve(), args.serial)
     else:
         parser.error('--android-sdk and --serial are required for Android')
-    (work / 'result.json').write_text(json.dumps({'status': 'passed', 'platform': args.target,
+    details = {}
+    if args.target.startswith('linux-'):
+        details = {item.get('key'): item.text for item in ET.parse(work / 'result.xml').findall('entry')}
+        details['tests'] = int(details['tests'])
+        details['java_os'] = 'Linux'
+    else:
+        details['page_size'] = int(subprocess.check_output([str(args.android_sdk / 'platform-tools/adb'), '-s', args.serial, 'shell', 'getconf', 'PAGESIZE'], text=True))
+        details['tests'] = 30
+    (work / 'result.json').write_text(json.dumps({**details, 'status': 'passed', 'platform': args.target,
         'native_sha256': digest(ROOT / '.build/staged' / args.target / 'jni' / TARGETS[args.target].binary),
         'binding_version': manifest['binding_version'], 'binding_abi': manifest['binding_abi']}, indent=2) + '\n')
 

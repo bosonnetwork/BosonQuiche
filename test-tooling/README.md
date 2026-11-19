@@ -11,8 +11,7 @@ the host, then install the complete distribution into an isolated repository:
 
 ```sh
 python3 native/scripts/build_native.py --all
-mvn -s .mvn/settings.xml verify
-mvn -s .mvn/settings.xml -Pdistribution -DskipTests \
+mvn -s .mvn/settings.xml -Pdistribution -Dnative.skip=true \
     -Dmaven.repo.local="$PWD/.build/artifact-repository" install
 python3 scripts/test_artifacts.py --repository .build/artifact-repository
 ```
@@ -104,3 +103,89 @@ Maven 3.9.2+ and Central's bundle-only profile produce the real Central ZIP
 without uploading. Python verifies its body hashes, signatures and sidecars,
 and the tests reject attempts to publish those fixtures.
 See [RELEASING.md](../RELEASING.md) for the evidence contract and release flow.
+
+## Complete packaged JNI qualification
+
+The `jni-tests` profile on the JVM consumer compiles the existing API tests
+and runs all 47 JNI/loader cases against the installed API and native JARs.
+It also runs the transport/HTTP3 consumer. The isolated repository must contain
+the test providers/dependencies, so run `install` with tests enabled as above.
+A clean native cache is supported: tiny loader mismatch fixtures are compiled
+separately with the pinned target compiler; Rust does not need to be rebuilt.
+
+On the macOS build host, run:
+
+```sh
+python3 scripts/test_jvm_consumers.py \
+    --repository .build/artifact-repository \
+    --work .build/qualification/jvm --prepare-windows
+```
+
+Use a fresh work directory for each run. Maven resolves through the file-only
+mirror and an empty consumer cache. The host and both Linux JVMs run the full
+47-case suite and packaged consumer with CheckJNI. All five desktop classifier
+JARs coexist on the runtime classpath. Linux Java runs with a read-only root
+filesystem, writable temporary storage and no build tools on PATH.
+
+The work directory contains `jvm-consumers.json`, per-platform runtime JSON,
+logs and portable Windows kits. Test fixtures and JUnit dependencies are test
+inputs; no additional test artifacts are published to Maven Central.
+
+Copy each Windows kit directory to a Windows guest, then run its `run.ps1`
+using the matching JDK 11+ installation (ARM64 or x64):
+
+```powershell
+.\run.ps1 -JavaHome 'C:\Path\To\MatchingJdk'
+```
+
+The kit needs no Rust, C compiler or Maven. Copy `result.xml` back to the build
+host and import it against the exact installed distribution:
+
+```sh
+python3 scripts/test_jvm_consumers.py \
+    --repository .build/artifact-repository \
+    --import-runtime /absolute/path/to/result.xml --target windows-arm64 \
+    --report .build/qualification/windows-arm64.json
+```
+
+Repeat for `windows-amd64`. Import verifies the actual JVM OS/architecture,
+47 successful tests, binding version/ABI and native resource checksum. An x64
+JVM does not qualify the ARM64 target. A missing guest result remains unverified.
+
+## Android page-size qualification
+
+Build the minified release APK as above, then run it on an unlocked, explicitly
+selected ARM64 emulator. A fresh test data disk is useful for an AVD whose
+saved owner is locked. No physical devices are accepted by the helper.
+
+```sh
+python3 scripts/test_android_consumer.py \
+    --android-sdk "$ANDROID_HOME" --serial emulator-5582 --page-size 4096 \
+    --repository .build/artifact-repository \
+    --report .build/qualification/android4k.json
+python3 scripts/test_android_consumer.py \
+    --android-sdk "$ANDROID_HOME" --serial emulator-5584 --page-size 16384 \
+    --repository .build/artifact-repository \
+    --report .build/qualification/android16k.json
+```
+
+The helper reads `getconf PAGESIZE`, checks the APK native bytes against the
+Maven AAR, validates ELF load alignment and runs SDK `zipalign -c -P 16 4`.
+It verifies the R8 mapping and enables CheckJNI for the new app process,
+restoring the emulator setting afterward. A fresh run ID prevents an old PASS
+log from qualifying a new run. Both runs must pass; binary alignment alone is
+not a 16 KB runtime test.
+
+Each report has version/ABI, native/APK/mapping hashes and actual page size.
+The helper also writes an `android-r8` sidecar. A successful 16 KB run adds
+an `android-16k` sidecar. These sidecars bind all 15 distribution artifact hashes
+and can be supplied to `build_all.py --evidence` alongside JVM/runtime receipts.
+The raw Android suite runs 29 transport cases and the Android loading branch:
+
+```sh
+python3 native/scripts/test_runtime.py --target android-arm64 \
+    --android-sdk "$ANDROID_HOME" --serial emulator-5584
+```
+
+The page-size and alignment checks follow the
+[Android guidance](https://developer.android.com/guide/practices/page-sizes).

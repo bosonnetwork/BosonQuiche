@@ -104,14 +104,17 @@ def source_fingerprint(root=ROOT):
         'scripts',
         'native/scripts',
         'native/docker',
+        'test-tooling',
     ):
         files.extend(
             path
             for path in (root / folder).rglob('*')
             if path.is_file()
-            and '__pycache__' not in path.parts
+            and not set(path.relative_to(root / folder).parts).intersection(
+                ('__pycache__', 'target', 'build', '.gradle')
+            )
             and path.suffix != '.pyc'
-            and path.name != '.DS_Store'
+            and path.name not in ('.DS_Store', 'local.properties')
         )
     files.extend(
         root / 'native' / name
@@ -373,6 +376,44 @@ def checked_validation(record, version, targets, artifacts, root=ROOT):
                 and item.get('evidence', {}).get('sha256'),
                 'Stale consumer/platform qualification evidence: ' + check,
             )
+            if check in ('android-r8', 'android-16k'):
+                require(
+                    item.get('checkjni') is True
+                    and item.get('elf_16k') is True
+                    and item.get('zipalign_16k') is True
+                    and item.get('native_sha256')
+                    == targets['android-arm64']['native_sha256']
+                    and item.get('apk_sha256')
+                    and item.get('mapping_sha256')
+                    and item.get('runtime_log_sha256'),
+                    'Incomplete Android consumer evidence: ' + check,
+                )
+                require(
+                    (
+                        item.get('page_size') == 16384
+                        if check == 'android-16k'
+                        else item.get('page_size') in (4096, 16384)
+                    ),
+                    'Android qualification has the wrong runtime page size: ' + check,
+                )
+            if check == 'jvm-consumers':
+                platforms = item.get('platforms', {})
+                require(
+                    {'macos-arm64', 'linux-amd64', 'linux-arm64'} <= set(platforms),
+                    'Packaged JVM qualification must cover macOS and both Linux architectures',
+                )
+                for platform, result in platforms.items():
+                    require(
+                        platform in targets
+                        and result.get('status') == 'passed'
+                        and result.get('tests') == 47
+                        and result.get('native_sha256')
+                        == targets[platform]['native_sha256']
+                        and result.get('binding_version') == version
+                        and result.get('binding_abi')
+                        == targets[platform]['binding_abi'],
+                        'Incomplete packaged JVM runtime evidence: ' + platform,
+                    )
     if record.get('fixture'):
         missing.append('synthetic-test-fixture')
     return {'complete': not missing, 'missing': missing}

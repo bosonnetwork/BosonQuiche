@@ -73,6 +73,25 @@ Receipts must come from the matching consumer/runtime verification; changing a
 status field does not establish test coverage. Their hashes are retained in
 the combined validation record. See [consumer checks](test-tooling/README.md).
 
+Consumer receipt producers and matching Windows JVM instructions are described
+in [consumer verification](test-tooling/README.md#complete-packaged-jni-qualification).
+After running the packaged JVM and both Android page-size checks, combine the
+receipts with a fresh distribution verification, for example:
+
+```sh
+python3 scripts/build_all.py --targets all --prebuilt \
+    --android-sdk "$ANDROID_HOME" --serial emulator-5584 \
+    --evidence .build/qualification/jvm/jvm-consumers.json \
+    --evidence .build/qualification/android16k-android-r8.json \
+    --evidence .build/qualification/android16k-android-16k.json
+```
+
+Add each imported Windows runtime JSON with another `--evidence` argument.
+Qualification checks include the real Android page size, CheckJNI, APK/ELF
+alignment, preserved JNI mapping and matching native bytes. The packaged JVM
+receipt must cover all 47 cases on macOS and both Linux architectures. Missing
+Windows runtimes remain visible and keep full publication qualification incomplete.
+
 ## Freeze an unsigned release
 
 After the matching version has been built and validated:
@@ -112,8 +131,8 @@ python3 scripts/verify_release.py --directory "$PWD/.build/releases/0.30.1.1"
 Unsigned preparation may record incomplete runtime qualification. Central
 publication requires all six runtimes, packaged JVM consumers, Android R8 and
 16 KB runtime evidence. Adding `--publication` performs that stricter check.
-The current absence of matching Windows runtime records is reported as
-incomplete qualification and blocks publication.
+Missing matching Windows runtime records are reported as incomplete
+qualification and block publication.
 
 ## Sign and validate locally
 

@@ -23,8 +23,14 @@
 package io.bosonnetwork.quiche;
 
 import java.io.PrintWriter;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.Properties;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -49,9 +55,43 @@ public final class NativeSuite {
                 .selectors(DiscoverySelectors.selectPackage("io.bosonnetwork.quiche")).build(), listener);
         listener.getSummary().printTo(new PrintWriter(System.out, true));
         listener.getSummary().printFailuresTo(new PrintWriter(System.out, true));
-        if (listener.getSummary().getTestsFoundCount() != 47 || listener.getSummary().getTestsFailedCount() != 0
+        if (listener.getSummary().getTestsFoundCount() != 47 || listener.getSummary().getTestsSucceededCount() != 47
+                || listener.getSummary().getTestsFailedCount() != 0
                 || listener.getSummary().getTestsSkippedCount() != 0)
             throw new AssertionError("Native suite did not pass all 47 tests");
+
+        if (args.length == 2 && args[0].equals("--report")) {
+            Properties report = new Properties();
+            report.setProperty("status", "passed");
+            report.setProperty("tests", "47");
+            report.setProperty("java_os", System.getProperty("os.name"));
+            report.setProperty("java_arch", System.getProperty("os.arch"));
+            report.setProperty("java_version", System.getProperty("java.runtime.version"));
+            report.setProperty("binding_version", Native.bindingVersion());
+            report.setProperty("binding_abi", Integer.toString(Native.bindingAbi()));
+            String classifier = NativeLoader.classifier(System.getProperty("os.name"), System.getProperty("os.arch"),
+                    System.getProperty("java.vm.name"), System.getProperty("java.runtime.name"));
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream input = NativeLoader.class.getResourceAsStream(
+                    "/native/" + classifier + "/" + System.mapLibraryName("boson_quiche"))) {
+                if (input == null)
+                    throw new AssertionError("Missing packaged native resource");
+
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1)
+                    digest.update(buffer, 0, count);
+            }
+
+            StringBuilder checksum = new StringBuilder();
+            for (byte value : digest.digest())
+                checksum.append(String.format("%02x", value & 0xff));
+
+            report.setProperty("native_sha256", checksum.toString());
+            try (OutputStream output = Files.newOutputStream(Path.of(args[1]))) {
+                report.storeToXML(output, "BosonQuiche JNI runtime evidence", "UTF-8");
+            }
+        }
     }
 
     private static void android() throws Exception {

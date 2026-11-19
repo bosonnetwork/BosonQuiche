@@ -23,9 +23,11 @@
 package io.bosonnetwork.quiche;
 
 import java.io.File;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -108,8 +110,17 @@ class NativeLoaderTest {
     void matchingArtifactsLoadThroughAnExplicitPath() throws Exception {
         String platform = NativeLoader.classifier(System.getProperty("os.name"), System.getProperty("os.arch"),
                 System.getProperty("java.vm.name"), System.getProperty("java.runtime.name"));
-        Path library = Path.of(NativeLoader.class.getResource(
-                "/native/" + platform + "/" + System.mapLibraryName("boson_quiche")).toURI());
+        Path directory = Files.createTempDirectory("boson-quiche-explicit-test-");
+        Path library = directory.resolve(System.mapLibraryName("boson_quiche"));
+        // Windows DLL locks must not mask the probe result during cleanup.
+        directory.toFile().deleteOnExit();
+        library.toFile().deleteOnExit();
+        try (InputStream input = NativeLoader.class.getResourceAsStream(
+                "/native/" + platform + "/" + library.getFileName())) {
+            assertNotNull(input);
+            Files.copy(input, library, StandardCopyOption.REPLACE_EXISTING);
+        }
+
         probe("success", library);
     }
 
