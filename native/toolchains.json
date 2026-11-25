@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "rust": "1.99.1",
+  "rust_minimum": "1.88.0",
   "rustup": "1.28.2",
   "cargo_xwin": "0.23.1",
   "windows_image": "boson-quiche-toolchain:windows-arm64",
   "linux_image_prefix": "boson-quiche-toolchain:linux-",
   "windows_sdk": "10.0.26100",
+  "windows_crt_component": "14.44.17.14",
   "windows_crt": "14.44.35220",
   "android": {
     "revision": "30.0.16248370",

@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo
 ENV PATH=/opt/cargo/bin:/usr/lib/llvm-20/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ARG RUST_TOOLCHAIN=stable
 RUN case "$TARGETARCH" in \
       arm64) host=aarch64-unknown-linux-gnu; sha=e3853c5a252fca15252d07cb23a1bdd9377a8c6f3efa01531109281ae47f841c ;; \
       amd64) host=x86_64-unknown-linux-gnu; sha=20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c ;; \
@@ -40,7 +41,7 @@ RUN case "$TARGETARCH" in \
     && curl -fsSL "https://static.rust-lang.org/rustup/archive/1.28.2/$host/rustup-init" -o /tmp/rustup-init \
     && echo "$sha  /tmp/rustup-init" | sha256sum -c - \
     && chmod +x /tmp/rustup-init \
-    && /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain 1.99.1 \
+    && /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain "$RUST_TOOLCHAIN" \
     && rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc \
     && rm /tmp/rustup-init
 

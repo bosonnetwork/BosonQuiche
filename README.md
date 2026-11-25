@@ -65,7 +65,7 @@ other TLS implementations.
 
 ## Build
 
-Requirements: JDK 11+, Maven 3.6+, Python 3.9+, Rust 1.99.1, C/C++ compiler,
+Requirements: JDK 11+, Maven 3.6+, Python 3.9+, Rust 1.88+, C/C++ compiler,
 CMake 3.22+ and the host platform development tools. Release bundling and
 publishing require Maven 3.9.2+. The Maven JNI build supports
 macOS and Linux hosts. Cross-platform JNI builds for all six targets use the
@@ -75,7 +75,10 @@ pages. Android checks include the R8-minified packaged consumer and CheckJNI.
 Windows ARM64 and x64 JVMs also pass all 47 JNI tests and the packaged consumer.
 The Windows x64 runtime checks use x64 emulation on Windows ARM64.
 
+Install the LLVM tools component for the selected Rust toolchain before building:
+
 ```sh
+rustup component add llvm-tools
 mvn -s .mvn/settings.xml verify
 ```
 
@@ -139,6 +142,11 @@ Build and record the complete local distribution with:
 python3 scripts/build_all.py --targets all
 ```
 
+When Android is selected, the full-build script restores a missing project-local
+NDK from the checksum-pinned archive before compiling any native target.
+An explicit `ANDROID_NDK_HOME` must contain the pinned revision and is never
+replaced automatically. Docker build images and host tools remain prerequisites.
+
 After setting a matching release version before building, freeze the exact
 artifact files with `python3 scripts/prepare_release.py --version 0.30.1.1`.
 Preparation rejects snapshots, mixed versions, stale inputs and incomplete
@@ -162,8 +170,11 @@ for the commands, portable Windows kits and artifact-bound evidence reports.
 
 `mvn clean` removes Maven outputs. Rebuildable target caches are under
 `.build/native/<target>` and `.build/staged/<target>`; removing these forces a
-fresh target build. Shared SDK/source/Cargo downloads are under `.build/cache`.
-Release candidates and qualification evidence use separate directories.
+fresh target build. Shared Cargo and cross-toolchain caches are under
+`.build/cache`; source/SDK archives are under `.build/downloads` and the
+project-local Android NDK is under `.build/toolchains`. Removing `.build`
+discards these rebuildable inputs and generated outputs. The full-build script
+downloads the pinned NDK again when needed.
 
 ## Cross-platform native toolchains
 
@@ -175,12 +186,27 @@ checks also validate C-API linking and PE metadata; they do not execute the
 Windows binaries. The Maven JNI package is built separately as described above.
 
 Use an Apple Silicon Mac with a running Docker-compatible engine (OrbStack or
-Docker Desktop), Rust 1.99.1, the Rust `llvm-tools` component, Xcode tools and
-CMake. Docker recipes pin base-image digests and compiler/tool versions. The
+Docker Desktop), Rust 1.88+, the Rust `llvm-tools` component, Xcode tools and
+CMake. Rust 1.88 is quiche 0.30.1's declared minimum; Cargo also checks the
+requirements of the locked dependencies. Newer Rust compilers are accepted.
+Docker recipes pin base-image digests and native compiler/tool versions. The
 Linux images use AlmaLinux 8.10 and glibc 2.28. The Windows image runs Linux
 ARM64 and cross-compiles both MSVC targets with LLVM 20 and cargo-xwin 0.23.1.
 [native/toolchains.json](native/toolchains.json) pins the Windows SDK/CRT and
 Android NDK/API versions and is a required, version-controlled build input.
+The Windows CRT component selector (`windows_crt_component`, such as
+`14.44.17.14`) differs from the installed package build (`windows_crt`, such as
+`14.44.35220`). The builder passes the selector to cargo-xwin and verifies the
+installed package build before compiling Rust or C/C++ code.
+
+Host builds use the selected Rust toolchain. Docker images install `stable`
+by default when their Rust installation layer is built; `RUST_TOOLCHAIN` is an
+optional Docker build argument for selecting another toolchain. Rebuild with
+`--no-cache` to refresh `stable` in an existing image. Existing images retain
+their installed compiler. The actual Rust compiler version and Docker image
+identity remain part of native build metadata and cache validation. Compiler
+upgrades require fresh native outputs. Install `llvm-tools` and any cross
+targets for the selected toolchain after a Rust upgrade.
 
 The builder downloads upstream sources automatically. An existing checkout can
 be selected with `--source /absolute/path/to/quiche`. Create the build images

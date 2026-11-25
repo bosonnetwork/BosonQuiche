@@ -78,9 +78,24 @@ class NativeBuildTest(unittest.TestCase):
             self.validate('windows-arm64')
 
     def test_changed_lock_or_toolchain_rejects_reuse(self):
-        changed = dict(self.inputs, cargo_lock_sha256='new lock')
-        with self.assertRaisesRegex(ValueError, 'Stale build inputs'):
-            self.validate(expected=changed)
+        self.inputs['builder'] = {'rustc': 'rustc 1.99.1 (previous compiler)'}
+        self.manifest['input_identity'] = config.identity(self.inputs)
+        self.save_manifest()
+        changes = (dict(self.inputs, cargo_lock_sha256='new lock'),
+                   dict(self.inputs, builder={'rustc': 'rustc 1.100.0 (updated compiler)'}))
+        for changed in changes:
+            with self.subTest(inputs=changed), self.assertRaisesRegex(ValueError, 'Stale build inputs'):
+                self.validate(expected=changed)
+
+    def test_rust_minimum_accepts_newer_compilers(self):
+        for version in ('1.88.0', '1.99.1', '1.100.0', '1.101.0-nightly', '2.0.0'):
+            with self.subTest(version=version):
+                self.assertTrue(toolchains.rust_version_supported('rustc ' + version + ' (test)', '1.88.0'))
+
+    def test_old_or_unrecognized_rust_compilers_are_rejected(self):
+        for compiler in ('rustc 1.87.9 (test)', 'rustc 0.100.0 (test)', '', 'unknown compiler'):
+            with self.subTest(compiler=compiler):
+                self.assertFalse(toolchains.rust_version_supported(compiler, '1.88.0'))
 
     def test_missing_native_file_is_rejected(self):
         (self.directory / 'libboson_quiche.dylib').unlink()
@@ -268,6 +283,55 @@ class NativeBuildTest(unittest.TestCase):
         with patch.dict(os.environ, {'JAVA_HOME': str(home)}):
             with self.assertRaisesRegex(ValueError, 'JDK 11 or later'):
                 build.jni_identity('macos-arm64', {})
+
+    def make_windows_crt(self, version='14.44.35220'):
+        sdk = self.root / 'windows-sdk'
+        header = sdk / 'xwin/crt/include/crtversion.h'
+        header.parent.mkdir(parents=True, exist_ok=True)
+        header.write_text(''.join('#define _VC_CRT_' + part + '_VERSION ' + value + '\n'
+            for part, value in zip(('MAJOR', 'MINOR', 'BUILD'), version.split('.'))))
+        return sdk
+
+    def test_windows_crt_component_selector_is_distinct_from_package_version(self):
+        sdk = self.make_windows_crt()
+        pins = {'windows_sdk': '10.0.26100', 'windows_crt_component': '14.44.17.14',
+                'windows_crt': '14.44.35220'}
+        env = {'XWIN_CACHE_DIR': str(sdk)}
+        with patch.object(toolchains.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)) as setup:
+            toolchains.prepare_windows_sdk(sdk, pins, env, self.root)
+        self.assertEqual(setup.call_args.args[0], ['cargo', 'xwin', 'cache', 'xwin'])
+        self.assertEqual(setup.call_args.kwargs['env']['XWIN_CACHE_DIR'], str(sdk))
+        self.assertEqual(setup.call_args.kwargs['env']['XWIN_SDK_VERSION'], '10.0.26100')
+        self.assertEqual(setup.call_args.kwargs['env']['XWIN_CRT_VERSION'], '14.44.17.14')
+        self.assertEqual(toolchains.verify_windows_crt(sdk, pins['windows_crt']), '14.44.35220')
+
+    def test_windows_ready_cache_cannot_bypass_the_exact_crt_package_pin(self):
+        sdk = self.make_windows_crt('14.44.35221')
+        (sdk / 'xwin/DONE').write_text('x86_64 aarch64\n')
+        pins = {'windows_sdk': '10.0.26100', 'windows_crt_component': '14.44.17.14',
+                'windows_crt': '14.44.35220'}
+        with patch.object(toolchains.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)):
+            with self.assertRaisesRegex(RuntimeError, 'expected 14.44.35220, found 14.44.35221'):
+                toolchains.prepare_windows_sdk(sdk, pins, {}, self.root)
+
+    def test_missing_windows_crt_version_header_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, 'Missing MSVC CRT version header'):
+            toolchains.verify_windows_crt(self.root, '14.44.35220')
+
+    def test_incomplete_windows_crt_version_is_rejected(self):
+        sdk = self.make_windows_crt()
+        (sdk / 'xwin/crt/include/crtversion.h').write_text('#define _VC_CRT_MAJOR_VERSION 14\n')
+        with self.assertRaisesRegex(RuntimeError, 'Missing MSVC CRT minor version'):
+            toolchains.verify_windows_crt(sdk, '14.44.35220')
+
+    def test_failed_windows_sdk_setup_stops_before_crt_verification(self):
+        pins = {'windows_sdk': '10.0.26100', 'windows_crt_component': '14.44.17.14',
+                'windows_crt': '14.44.35220'}
+        with patch.object(toolchains.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)), \
+                patch.object(toolchains, 'verify_windows_crt') as verify, patch('sys.stderr', io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, 'Windows SDK setup failed'):
+                toolchains.prepare_windows_sdk(self.root, pins, {}, self.root)
+        verify.assert_not_called()
 
     def test_maven_and_documentation_pins_must_agree(self):
         shutil.copytree(config.ROOT / 'native', self.root / 'native',

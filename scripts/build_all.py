@@ -24,6 +24,7 @@
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 import shutil
@@ -33,22 +34,58 @@ import xml.etree.ElementTree as ET
 
 import release_support as release
 from release_support import ROOT, config
+import native_toolchains as toolchains
 
 
 def run(command, log):
     print('Running:', ' '.join(map(str, command)), flush=True)
     with log.open('w') as output:
-        subprocess.run(
-            list(map(str, command)),
-            cwd=ROOT,
-            stdout=output,
-            stderr=subprocess.STDOUT,
-            check=True,
-        )
+        try:
+            subprocess.run(
+                list(map(str, command)),
+                cwd=ROOT,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                check=True,
+            )
+        except subprocess.CalledProcessError:
+            output.flush()
+            print('Failed command log:', log, file=sys.stderr)
+            print(
+                '\n'.join(log.read_text(errors='replace').splitlines()[-20:]),
+                file=sys.stderr,
+            )
+            raise
     return {
         'status': 'passed',
         'evidence': {'kind': 'command-log', 'sha256': config.digest(log)},
     }
+
+
+def prepare_android_ndk(targets, prebuilt, logs):
+    """Restore the disposable NDK cache before starting native builds."""
+    if prebuilt or 'android-arm64' not in targets:
+        return
+    pins = json.loads((ROOT / 'native/toolchains.json').read_text())
+    properties = toolchains.ndk_path(pins) / 'source.properties'
+    if not properties.is_file() and not os.environ.get('ANDROID_NDK_HOME'):
+        run(
+            [sys.executable, ROOT / 'native/scripts/build_native.py', '--fetch-ndk'],
+            logs / 'android-ndk-setup.log',
+        )
+    release.require(
+        properties.is_file(),
+        'Missing Android NDK metadata: ' + str(properties)
+        + '; set ANDROID_NDK_HOME to the pinned NDK or unset it to use the project cache',
+    )
+    release.require(
+        re.search(
+            r'Pkg.Revision\s*=\s*' + re.escape(pins['android']['revision']) + r'\s*$',
+            properties.read_text(),
+            re.M,
+        ),
+        'Android NDK revision differs from native/toolchains.json: ' + str(properties),
+    )
 
 
 def test_summary():
@@ -159,6 +196,7 @@ def main():
     release.require(
         not (args.prebuilt and args.reuse), 'Choose either --prebuilt or --reuse'
     )
+    prepare_android_ndk(targets, args.prebuilt, logs)
     for target in targets:
         if args.prebuilt:
             release.packaging.validate(target)
