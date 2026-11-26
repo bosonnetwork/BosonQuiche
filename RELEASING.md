@@ -31,6 +31,11 @@ Set up the native toolchains described in [README.md](README.md), then run:
 python3 scripts/build_all.py --targets all
 ```
 
+Toolchain images are reused across builds. Linux/Windows compilation uses
+disposable containers with architecture-specific Docker cache volumes; the
+host receives native outputs and diagnostics. Deleting `.build` does not clear
+these volumes. See the README for cache locations and explicit cleanup commands.
+
 This builds all six JNI targets, runs Python tests and clean Maven verification,
 packages the distribution, runs the Linux JVM suites and writes
 `.build/validation/build.json`. The host JNI suite, strict JavaDoc, artifact

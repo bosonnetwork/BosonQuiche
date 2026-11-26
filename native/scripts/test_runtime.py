@@ -34,7 +34,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 import build_native as build
-from native_config import ROOT, TARGETS, digest
+from native_config import ROOT, TARGETS, digest, docker_cache_volume, identity
 
 
 def run(*command):
@@ -76,7 +76,14 @@ def loader_fixtures(target, work, manifest):
     """Build tiny loader fixtures with the pinned target compiler, independent of Rust caches."""
     builder = manifest['inputs']['builder']
     windows = target.startswith('windows-')
+    volume = docker_cache_volume(target, builder['image_arch'])
+    fixture_id = identity({'builder': builder, 'version': manifest['binding_version'],
+                           'abi': manifest['binding_abi'],
+                           'sources': {path.name: digest(path) for path in
+                               sorted((ROOT / 'native/src/test/c').iterdir()) if path.is_file()}})
+    directory = '/cache/loader-fixtures/' + target + '/' + fixture_id
     command = ['docker', 'run', '--rm', '--platform', 'linux/' + builder['image_arch'],
+               '--mount', f'type=volume,source={volume},target=/cache',
                '--mount', f'type=bind,source={work},target=/runtime',
                '--mount', f'type=bind,source={ROOT / "native/src/test/c"},target=/fixtures,readonly',
                '--env', 'BOSON_VERSION=' + manifest['binding_version'],
@@ -85,15 +92,15 @@ def loader_fixtures(target, work, manifest):
     if windows:
         pins = json.loads((ROOT / 'native/toolchains.json').read_text())
         sdk = 'xwin-llvm20-sdk' + pins['windows_sdk'] + '-crt' + pins['windows_crt']
-        command += ['--mount', f'type=bind,source={ROOT / ".build/cache"},target=/cache,readonly']
         extra = 'export PATH=/cache/' + sdk + ':$PATH; '
         toolchain = '/cache/' + sdk + '/cmake/clang-cl/' + TARGETS[target].rust + '-toolchain.cmake'
         extra += 'export CMAKE_TOOLCHAIN_FILE=' + toolchain + '; '
     generator = 'Ninja' if windows else 'Unix Makefiles'
-    script = extra + ('cmake -S /fixtures -B /runtime/loader-build -G "' + generator + '" '
+    script = extra + ('cmake -S /fixtures -B ' + directory + '/build -G "' + generator + '" '
               '-DCMAKE_BUILD_TYPE=Release "-DJNI_INCLUDE=$JAVA_HOME/include" '
               '-DJNI_PLATFORM=' + TARGETS[target].jni + ' "-DBOSON_BINDING_VERSION=$BOSON_VERSION" '
-              '"-DBOSON_BINDING_ABI=$BOSON_ABI" && cmake --build /runtime/loader-build')
+              '"-DBOSON_BINDING_ABI=$BOSON_ABI" && cmake --build ' + directory + '/build && '
+              'mkdir -p /runtime/test-libraries && cp ' + directory + '/test-libraries/* /runtime/test-libraries/')
     run(*command, builder['image_id'], 'sh', '-c', script)
     return work / 'test-libraries'
 

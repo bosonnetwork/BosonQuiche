@@ -86,6 +86,14 @@ def host_target():
     return target_id(platform.system() + '-' + platform.machine())
 
 
+def docker_cache_volume(target, image_arch):
+    """Share downloads within a builder family, never across Linux architectures."""
+    family = target.split('-')[0]
+    if target not in TARGETS or family not in ('linux', 'windows') or image_arch not in ('arm64', 'amd64'):
+        raise ValueError('Unsupported Docker cache target or architecture')
+    return f'boson-quiche-{family}-cache-{image_arch}'
+
+
 def output(*command, env=None):
     return subprocess.check_output(command, text=True, env=env, stderr=subprocess.STDOUT)
 

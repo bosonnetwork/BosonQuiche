@@ -223,28 +223,68 @@ def compile_jni(target, source, work, inputs, pins, cache, headers, test_natives
     return binary
 
 
+def export_container_outputs(work, destination, target, stage, test_natives):
+    """Export distributable files without copying Cargo or CMake build trees."""
+    report = json.loads((work / 'proof.json').read_text())
+    archive = Path(report['archive'])
+    shutil.copyfile(archive, destination / archive.name)
+    report['archive'] = str(destination / archive.name)
+    for name in ('licenses', 'link-support', 'jni'):
+        shutil.rmtree(destination / name, ignore_errors=True)
+    for name in ('licenses', 'link-support'):
+        if (work / name).is_dir():
+            shutil.copytree(work / name, destination / name)
+    if stage == 'jni':
+        (destination / 'jni').mkdir()
+        shutil.copyfile(work / 'jni' / TARGETS[target].binary, destination / 'jni' / TARGETS[target].binary)
+        if test_natives:
+            shutil.copytree(work / 'jni/test-libraries', destination / 'jni/test-libraries')
+    (destination / 'proof.json').write_text(json.dumps(report, indent=2) + '\n')
+
+
+def build_in_container(target, stage, pins, test_natives, destination=Path('/output'),
+                       source=Path('/source'), cache=Path('/cache')):
+    inputs = json.loads((destination / 'inputs.json').read_text())
+    work = cache / 'build' / target / identity(inputs)
+    with config.build_lock(cache / 'locks' / (target + '.lock')):
+        work.mkdir(parents=True, exist_ok=True)
+        write_if_changed(work / 'inputs.json', json.dumps(inputs, indent=2) + '\n')
+        try:
+            toolchains.build_archive(target, source, work, ROOT / 'native', pins, cache)
+            if stage == 'jni':
+                compile_jni(target, source, work, ROOT / 'native', pins, cache,
+                            jni_headers(target, pins), test_natives)
+            export_container_outputs(work, destination, target, stage, test_natives)
+        finally:
+            # Keep failure diagnostics available after the disposable container exits.
+            for path in sorted(work.iterdir()):
+                if path.is_file() and path.suffix in ('.log', '.txt'):
+                    shutil.copyfile(path, destination / path.name)
+            inventory = Path('/opt/build-packages.txt')
+            if inventory.is_file():
+                shutil.copyfile(inventory, destination / 'toolchain-packages.txt')
+
+
 def run_container(target, source, work, tools, stage, test_natives=False):
-    """Mount only selected inputs, never a home directory or publishing state."""
-    cache = ROOT / '.build/cache'
-    cache.mkdir(parents=True, exist_ok=True)
-    mounts = [(source, '/source', True), (work, '/work', False), (cache, '/cache', False),
+    """Mount selected sources and final outputs; keep heavy work in a Docker volume."""
+    volume = config.docker_cache_volume(target, tools['image_arch'])
+    mounts = [(source, '/source', True), (work, '/output', False),
               (ROOT / 'native', '/project/native', True),
               (ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java',
                '/project/api/src/main/java/io/bosonnetwork/quiche/Native.java', True)]
-    command = ['docker', 'run', '--rm', '--platform', 'linux/' + tools['image_arch']]
+    command = ['docker', 'run', '--rm', '--platform', 'linux/' + tools['image_arch'],
+               '--mount', f'type=volume,source={volume},target=/cache']
     for path, destination, readonly in mounts:
         command += ['--mount', f'type=bind,source={path},target={destination}' + (',readonly' if readonly else '')]
     command += [tools['image_id'], 'python3', '/project/native/scripts/build_native.py',
                 '--inside', '--target', target, '--stage', stage]
     if test_natives:
         command.append('--test-natives')
+    (work / 'proof.json').unlink(missing_ok=True)
     execute(*command)
     report = json.loads((work / 'proof.json').read_text())
-    report['archive'] = str(work / Path(report['archive']).relative_to('/work'))
+    report['archive'] = str(work / Path(report['archive']).relative_to('/output'))
     report['builder'] = tools
-    packages = output('docker', 'run', '--rm', '--platform', 'linux/' + tools['image_arch'],
-                      tools['image_id'], 'cat', '/opt/build-packages.txt')
-    (work / 'toolchain-packages.txt').write_text(packages)
     report['os_packages_sha256'] = digest(work / 'toolchain-packages.txt')
     (work / 'proof.json').write_text(json.dumps(report, indent=2) + '\n')
 
@@ -373,11 +413,7 @@ def main(argv=None):
         return toolchains.preflight(pins)
     stage = 'archive' if args.quiche_only else args.stage
     if args.inside:
-        work, source, cache = Path('/work'), Path('/source'), Path('/cache')
-        toolchains.build_archive(args.target, source, work, ROOT / 'native', pins, cache)
-        if stage == 'jni':
-            compile_jni(args.target, source, work, ROOT / 'native', pins, cache,
-                        jni_headers(args.target, pins), args.test_natives)
+        build_in_container(args.target, stage, pins, args.test_natives)
         return 0
     version = config.validate_inputs()
     source = config.prepare_source(args.source)

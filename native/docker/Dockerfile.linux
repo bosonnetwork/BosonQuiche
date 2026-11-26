@@ -18,7 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-FROM almalinux@sha256:768bedc30fe0a536adb0a65d2eddb7caad364e514fbddd0ae9e026975f590342
+# Preserve the glibc 2.28 baseline for the distributed Linux libraries.
+FROM almalinux:8.10
 
 ARG TARGETARCH
 RUN dnf install -y \

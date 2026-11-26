@@ -98,7 +98,9 @@ To build against an existing checkout with the matching public header:
 mvn -s .mvn/settings.xml -Dquiche.source=/absolute/path/to/quiche verify
 ```
 
-Sources, native build products and Cargo caches are under ignored `.build/`.
+Host sources, native build products and Cargo caches are under ignored `.build/`.
+Docker builds keep incremental work and dependencies in named volumes, as
+described under [native toolchains](#cross-platform-native-toolchains).
 Host native test resources are copied into `api/target/native-test-resources/`;
 `mvn clean` preserves the cached native inputs. A supplied checkout is not modified.
 `-Dnative.skip=true` validates and restores an existing host library without
@@ -168,13 +170,13 @@ qualification; cross-compilation alone does not supply them.
 See [consumer verification](test-tooling/README.md#complete-packaged-jni-qualification)
 for the commands, portable Windows kits and artifact-bound evidence reports.
 
-`mvn clean` removes Maven outputs. Rebuildable target caches are under
-`.build/native/<target>` and `.build/staged/<target>`; removing these forces a
-fresh target build. Shared Cargo and cross-toolchain caches are under
-`.build/cache`; source/SDK archives are under `.build/downloads` and the
-project-local Android NDK is under `.build/toolchains`. Removing `.build`
-discards these rebuildable inputs and generated outputs. The full-build script
-downloads the pinned NDK again when needed.
+`mvn clean` removes Maven outputs. Host build work and exported Docker outputs
+are under `.build/native/<target>`; staged libraries are under
+`.build/staged/<target>`. Host Cargo caches are under `.build/cache`, source/SDK
+archives are under `.build/downloads` and the project-local Android NDK is under
+`.build/toolchains`. Removing `.build` discards these generated files. The
+full-build script downloads the pinned NDK again when needed. Docker named
+volumes survive this cleanup and can supply incremental work for the next build.
 
 ## Cross-platform native toolchains
 
@@ -189,8 +191,9 @@ Use an Apple Silicon Mac with a running Docker-compatible engine (OrbStack or
 Docker Desktop), Rust 1.88+, the Rust `llvm-tools` component, Xcode tools and
 CMake. Rust 1.88 is quiche 0.30.1's declared minimum; Cargo also checks the
 requirements of the locked dependencies. Newer Rust compilers are accepted.
-Docker recipes pin base-image digests and native compiler/tool versions. The
-Linux images use AlmaLinux 8.10 and glibc 2.28. The Windows image runs Linux
+Docker recipes use readable base-image tags and versioned native compilers/tools.
+The Linux images use `almalinux:8.10` to preserve glibc 2.28 compatibility.
+The Windows image uses `ubuntu:24.04`, runs Linux
 ARM64 and cross-compiles both MSVC targets with LLVM 20 and cargo-xwin 0.23.1.
 [native/toolchains.json](native/toolchains.json) pins the Windows SDK/CRT and
 Android NDK/API versions and is a required, version-controlled build input.
@@ -213,12 +216,12 @@ be selected with `--source /absolute/path/to/quiche`. Create the build images
 and install the pinned Android NDK:
 
 ```sh
-docker build --platform linux/arm64 -f native/docker/Dockerfile.windows \
-    -t boson-quiche-toolchain:windows-arm64 native/docker
-docker build --platform linux/arm64 -f native/docker/Dockerfile.linux \
-    -t boson-quiche-toolchain:linux-arm64 native/docker
-docker build --platform linux/amd64 -f native/docker/Dockerfile.linux \
-    -t boson-quiche-toolchain:linux-amd64 native/docker
+docker buildx build --platform linux/arm64 -f native/docker/Dockerfile.windows \
+    -t boson-quiche-toolchain:windows-arm64 --load native/docker
+docker buildx build --platform linux/arm64 -f native/docker/Dockerfile.linux \
+    -t boson-quiche-toolchain:linux-arm64 --load native/docker
+docker buildx build --platform linux/amd64 -f native/docker/Dockerfile.linux \
+    -t boson-quiche-toolchain:linux-amd64 --load native/docker
 rustup component add llvm-tools
 rustup target add aarch64-linux-android
 python3 native/scripts/build_native.py --fetch-ndk
@@ -240,16 +243,56 @@ python3 native/scripts/build_native.py --all --inspect
 ```
 
 The other IDs are `linux-amd64`, `linux-arm64`, `macos-arm64` and
-`android-arm64`. Linux x64 runs under architecture translation on an ARM64 Mac.
-Outputs, SDKs and dependency caches are under `.build/`.
+`android-arm64`. Use Linux ARM64 for the local development loop; Linux x64
+verification uses architecture translation on an ARM64 Mac. Enable Rosetta for
+Linux in the Docker engine when available.
 `ANDROID_NDK_HOME` can select an existing NDK with the exact pinned revision.
 
-Target-specific work directories under `.build/native/` are keyed by source,
-lockfile, toolchain, features and baseline. Build logs and inspection results
-remain there. Staged outputs under `.build/staged/<platform>/<stage>/` contain
+The images contain reusable toolchains. Application compilation and tests use
+`docker run --rm`; changing application source does not require rebuilding an
+image. Docker creates these persistent cache volumes automatically:
+
+| Builder | Named volume |
+| --- | --- |
+| Linux ARM64 | `boson-quiche-linux-cache-arm64` |
+| Linux AMD64 | `boson-quiche-linux-cache-amd64` |
+| Windows cross-compiler on Linux ARM64 | `boson-quiche-windows-cache-arm64` |
+
+Cargo dependencies, Rust target directories, CMake build trees and Windows SDK
+downloads stay in these volumes at `/cache`. Work directories under
+`/cache/build/<target>/<input-identity>/` are keyed by source, lockfile,
+toolchain, features and baseline. Both Windows targets share SDK downloads in
+the ARM64 builder volume; their build directories remain separate. Loader
+fixture builds use `/cache/loader-fixtures/` in the same matching volume.
+
+Containers mount project sources read-only and export libraries, notices,
+test fixture libraries and diagnostic records to `.build/native/`. Rust and
+CMake build trees remain inside Docker. Host macOS/Android builds retain their
+work directories under `.build/native/`. Staged outputs under
+`.build/staged/<platform>/<stage>/` contain
 the library, dependency notices and a checksummed `build.json` manifest.
 The manifest records versions, architecture, compiler/SDK details and image
 identity. Debug sidecars stay outside runtime resources.
+
+To inspect a cached Linux build interactively, reuse its toolchain image:
+
+```sh
+docker run --rm -it --platform linux/arm64 \
+    --mount type=volume,source=boson-quiche-linux-cache-arm64,target=/cache \
+    boson-quiche-toolchain:linux-arm64 bash
+```
+
+Inspect libraries under `/cache/build/` with `ldd` or `readelf`. Repeat the
+normal target build command to rebuild after editing source. To discard Docker
+incremental work and downloaded dependencies, remove the selected volume while
+no build is running, for example:
+
+```sh
+docker volume rm boson-quiche-linux-cache-arm64
+```
+
+Remove the other listed volumes individually when their caches are no longer
+needed. The next build recreates them and downloads dependencies again.
 
 Inspect staged static archives or generate a machine-readable report:
 

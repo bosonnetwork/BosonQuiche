@@ -112,6 +112,9 @@ It also runs the transport/HTTP3 consumer. The isolated repository must contain
 the test providers/dependencies, so run `install` with tests enabled as above.
 A clean native cache is supported: tiny loader mismatch fixtures are compiled
 separately with the pinned target compiler; Rust does not need to be rebuilt.
+Their CMake build trees stay in the matching Docker cache volume, and only
+fixture libraries are copied into the consumer work directory. Windows fixture
+builds use the SDK cache prepared by the Windows native builder in that volume.
 
 On the macOS build host, run:
 
