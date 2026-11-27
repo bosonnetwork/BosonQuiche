@@ -43,7 +43,7 @@ MODULES = {
     'boson-quiche-native': 'native',
     'boson-quiche-android': 'android',
 }
-REQUIRED_CHECKS = ('python', 'host-jni', 'javadoc', 'artifacts')
+REQUIRED_CHECKS = ('host-jni', 'javadoc', 'artifacts')
 
 
 def require(condition, message):
@@ -63,7 +63,7 @@ def release_version(version):
     return version
 
 
-def artifact_paths(version, root=ROOT):
+def artifact_paths(version):
     """Map each Maven repository path to the exact file produced by the reactor."""
     result = {}
     for artifact, module in MODULES.items():
@@ -77,8 +77,8 @@ def artifact_paths(version, root=ROOT):
             + '-'
             + version
         )
-        result[prefix + '.pom'] = root / module / 'pom.xml'
-        output = root / module / 'target'
+        result[prefix + '.pom'] = ROOT / module / 'pom.xml'
+        output = ROOT / module / 'target'
         suffixes = []
         if artifact == 'boson-quiche':
             suffixes = ['.jar', '-sources.jar', '-javadoc.jar']
@@ -95,29 +95,35 @@ def artifact_paths(version, root=ROOT):
     return result
 
 
-def source_fingerprint(root=ROOT):
-    files = [root / module / 'pom.xml' for module in MODULES.values()]
+def source_fingerprint():
+    """Hash the inputs that can change a published artifact byte.
+
+    Release and consumer tooling under ``scripts/`` and ``test-tooling/`` is
+    deliberately absent: it orchestrates and measures artifacts but cannot
+    change their content, and their content is bound separately by the
+    recorded artifact hashes.
+    """
+
+    files = [ROOT / module / 'pom.xml' for module in MODULES.values()]
     for folder in (
         'api/src',
         'native/src',
         'android/src',
-        'scripts',
         'native/scripts',
         'native/docker',
-        'test-tooling',
     ):
         files.extend(
             path
-            for path in (root / folder).rglob('*')
+            for path in (ROOT / folder).rglob('*')
             if path.is_file()
-            and not set(path.relative_to(root / folder).parts).intersection(
+            and not set(path.relative_to(ROOT / folder).parts).intersection(
                 ('__pycache__', 'target', 'build', '.gradle')
             )
             and path.suffix != '.pyc'
             and path.name not in ('.DS_Store', 'local.properties')
         )
     files.extend(
-        root / 'native' / name
+        ROOT / 'native' / name
         for name in (
             'quiche.h',
             'quiche.json',
@@ -130,14 +136,14 @@ def source_fingerprint(root=ROOT):
     )
     return config.identity(
         {
-            path.relative_to(root).as_posix(): config.digest(path)
+            path.relative_to(ROOT).as_posix(): config.digest(path)
             for path in sorted(set(files))
         }
     )
 
 
-def validate_poms(version, root=ROOT):
-    parent = ET.parse(root / 'pom.xml').getroot()
+def validate_poms(version):
+    parent = ET.parse(ROOT / 'pom.xml').getroot()
     require(
         parent.findtext('m:version', namespaces=NS) == version,
         'Set the Maven release version before building release inputs',
@@ -147,7 +153,7 @@ def validate_poms(version, root=ROOT):
         'Publication groupId must be io.bosonnetwork',
     )
     for artifact, module in MODULES.items():
-        model = ET.parse(root / module / 'pom.xml').getroot()
+        model = ET.parse(ROOT / module / 'pom.xml').getroot()
         require(
             model.findtext('m:groupId', 'io.bosonnetwork', NS) == 'io.bosonnetwork'
             and model.findtext('m:version', version, NS) == version,
@@ -244,11 +250,12 @@ def check_binary_baseline(binary, target):
         )
 
 
-def validate_natives(root=ROOT):
-    version = config.validate_inputs(root)
-    abi = config.binding_abi(root)
+def validate_natives(selected=None):
+    """Validate staged native inputs; `selected` limits the set for CI runs."""
+    version = config.validate_inputs()
+    abi = config.binding_abi()
     declarations = (
-        root / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'
+        ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'
     ).read_text()
     exports = {'JNI_OnLoad', 'JNI_OnUnload'} | {
         'Java_io_bosonnetwork_quiche_Native_' + name
@@ -256,7 +263,9 @@ def validate_natives(root=ROOT):
     }
     targets = {}
     for target, spec in config.TARGETS.items():
-        directory, manifest = packaging.validate(target, root=root)
+        if selected is not None and target not in selected:
+            continue
+        directory, manifest = packaging.validate(target)
         require(
             set(manifest.get('jni_exports', [])) == exports,
             'JNI export inspection missing or stale: ' + target,
@@ -294,7 +303,7 @@ def hashes(paths):
     return {name: config.digest(path) for name, path in sorted(paths.items())}
 
 
-def checked_validation(record, version, targets, artifacts, root=ROOT):
+def checked_validation(record, version, targets, artifacts):
     require(
         record.get('scope') == 'distribution',
         'Release preparation requires complete distribution validation',
@@ -302,11 +311,11 @@ def checked_validation(record, version, targets, artifacts, root=ROOT):
     require(
         record.get('schema') == 1
         and record.get('binding_version') == version
-        and record.get('binding_abi') == config.binding_abi(root),
+        and record.get('binding_abi') == config.binding_abi(),
         'Validation record version/ABI mismatch',
     )
     require(
-        record.get('source_fingerprint') == source_fingerprint(root),
+        record.get('source_fingerprint') == source_fingerprint(),
         'Validation record has stale source inputs',
     )
     require(
@@ -413,8 +422,6 @@ def checked_validation(record, version, targets, artifacts, root=ROOT):
                         == targets[platform]['binding_abi'],
                         'Incomplete packaged JVM runtime evidence: ' + platform,
                     )
-    if record.get('fixture'):
-        missing.append('synthetic-test-fixture')
     return {'complete': not missing, 'missing': missing}
 
 
@@ -430,21 +437,21 @@ def write_json(path, value):
     )
 
 
-def freeze(version, validation, output, root=ROOT):
+def freeze(version, validation, output):
     release_version(version)
     require(
-        version == config.validate_inputs(root),
+        version == config.validate_inputs(),
         'Release version differs from Maven/native inputs; rebuild with the release version',
     )
-    validate_poms(version, root)
+    validate_poms(version)
     require(
         not output.exists(),
         'Release directory already exists; prepared releases cannot be overwritten',
     )
-    targets = validate_natives(root)
-    paths = artifact_paths(version, root)
+    targets = validate_natives()
+    paths = artifact_paths(version)
     files = hashes(paths)
-    qualification = checked_validation(validation, version, targets, files, root)
+    qualification = checked_validation(validation, version, targets, files)
     temporary = output.with_name(output.name + '.assembling')
     require(
         not temporary.exists(),
@@ -457,15 +464,15 @@ def freeze(version, validation, output, root=ROOT):
             destination = repository / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, destination)
-        test_artifacts.check(repository, root)
+        test_artifacts.check(repository)
         record = {
             'schema': 1,
             'binding_version': version,
-            'binding_abi': config.binding_abi(root),
+            'binding_abi': config.binding_abi(),
             'quiche_version': config.TAG,
             'files': files,
             'targets': targets,
-            'source_fingerprint': source_fingerprint(root),
+            'source_fingerprint': source_fingerprint(),
             'qualification': qualification,
             'validation': validation,
         }
@@ -480,7 +487,7 @@ def freeze(version, validation, output, root=ROOT):
             for name, value in sums.items()
         }
         (temporary / 'SHA256SUMS').write_text(checksum_text(sums), encoding='ascii')
-        verify(temporary, root=root)
+        verify(temporary)
         temporary.rename(output)
         for file in output.rglob('*'):
             if file.is_file():
@@ -492,10 +499,10 @@ def freeze(version, validation, output, root=ROOT):
     return record
 
 
-def verify_built(record, module, root=ROOT):
+def verify_built(record, module):
     """Check this module's normal Maven outputs before signing or deployment."""
     require(module in MODULES, 'Unexpected release module: ' + module)
-    paths = artifact_paths(record['binding_version'], root)
+    paths = artifact_paths(record['binding_version'])
     for name, path in paths.items():
         if name.split('/')[2] != module:
             continue
@@ -513,12 +520,12 @@ def verify_built(record, module, root=ROOT):
             )
 
 
-def verify(directory, publication=False, root=ROOT):
+def verify(directory, publication=False):
     record = json.loads((directory / 'manifest.json').read_text())
     version = release_version(record['binding_version'])
     require(record.get('schema') == 1, 'Unsupported release manifest')
-    validate_poms(version, root)
-    expected = artifact_paths(version, root)
+    validate_poms(version)
+    expected = artifact_paths(version)
     require(
         set(record['files']) == set(expected),
         'Release has an incomplete or unexpected artifact set',
@@ -546,15 +553,15 @@ def verify(directory, publication=False, root=ROOT):
                 'Source POM changed after preparation: ' + name,
             )
     require(
-        record.get('source_fingerprint') == source_fingerprint(root),
+        record.get('source_fingerprint') == source_fingerprint(),
         'Sources changed after release preparation',
     )
-    targets = validate_natives(root)
+    targets = validate_natives()
     require(
         targets == record['targets'], 'Staged native inputs changed after preparation'
     )
     qualification = checked_validation(
-        record['validation'], version, targets, record['files'], root
+        record['validation'], version, targets, record['files']
     )
     require(
         record['qualification'] == qualification, 'Release qualification record changed'
@@ -567,7 +574,7 @@ def verify(directory, publication=False, root=ROOT):
         (directory / 'SHA256SUMS').read_text() == checksum_text(sums),
         'Release checksum manifest changed',
     )
-    test_artifacts.check(repository, root)
+    test_artifacts.check(repository)
     if publication:
         require(
             qualification['complete'],

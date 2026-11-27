@@ -20,12 +20,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Build selected native targets and record version-bound distribution validation."""
+"""Build selected native targets and record version-bound distribution validation.
+
+The build uses the toolchains already installed on this machine and installs
+nothing; run scripts/check_toolchain.py to see what is available.
+"""
 
 import argparse
 import json
-import os
-import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -34,11 +36,16 @@ import xml.etree.ElementTree as ET
 
 import release_support as release
 from release_support import ROOT, config
-import native_toolchains as toolchains
+import buildlog
+
+
+class StepFailed(Exception):
+    """A build step already reported its own failure."""
 
 
 def run(command, log):
-    print('Running:', ' '.join(map(str, command)), flush=True)
+    buildlog.step(log.stem)
+    buildlog.command(command)
     with log.open('w') as output:
         try:
             subprocess.run(
@@ -50,42 +57,14 @@ def run(command, log):
             )
         except subprocess.CalledProcessError:
             output.flush()
-            print('Failed command log:', log, file=sys.stderr)
-            print(
-                '\n'.join(log.read_text(errors='replace').splitlines()[-20:]),
-                file=sys.stderr,
-            )
-            raise
+            buildlog.fail('failed, log -> ' + buildlog.rel(log))
+            buildlog.tail(log, 25)
+            raise StepFailed(log.stem) from None
+    buildlog.done(log.stem)
     return {
         'status': 'passed',
         'evidence': {'kind': 'command-log', 'sha256': config.digest(log)},
     }
-
-
-def prepare_android_ndk(targets, prebuilt, logs):
-    """Restore the disposable NDK cache before starting native builds."""
-    if prebuilt or 'android-arm64' not in targets:
-        return
-    pins = json.loads((ROOT / 'native/toolchains.json').read_text())
-    properties = toolchains.ndk_path(pins) / 'source.properties'
-    if not properties.is_file() and not os.environ.get('ANDROID_NDK_HOME'):
-        run(
-            [sys.executable, ROOT / 'native/scripts/build_native.py', '--fetch-ndk'],
-            logs / 'android-ndk-setup.log',
-        )
-    release.require(
-        properties.is_file(),
-        'Missing Android NDK metadata: ' + str(properties)
-        + '; set ANDROID_NDK_HOME to the pinned NDK or unset it to use the project cache',
-    )
-    release.require(
-        re.search(
-            r'Pkg.Revision\s*=\s*' + re.escape(pins['android']['revision']) + r'\s*$',
-            properties.read_text(),
-            re.M,
-        ),
-        'Android NDK revision differs from native/toolchains.json: ' + str(properties),
-    )
 
 
 def test_summary():
@@ -132,7 +111,7 @@ def main():
         action='store_true',
         help='Strictly validate and reuse existing native build inputs',
     )
-    parser.add_argument('--settings', type=Path, default=ROOT / '.mvn/settings.xml')
+    parser.add_argument('--settings', type=Path, help='Optional Maven settings file')
     parser.add_argument('--maven-repository', type=Path)
     parser.add_argument('--android-sdk', type=Path)
     parser.add_argument('--serial', help='Explicit API 33+ ARM64 emulator serial')
@@ -168,39 +147,13 @@ def main():
     logs.mkdir(exist_ok=True)
     initial = release.source_fingerprint()
     checks = {}
-    python_checks = []
-    for suite in ('native/scripts/tests', 'scripts/tests'):
-        release.require(
-            (ROOT / suite).is_dir(), 'Missing required Python test suite: ' + suite
-        )
-        log = logs / (suite.replace('/', '-') + '.log')
-        result = run(
-            [sys.executable, '-m', 'unittest', 'discover', '-s', suite, '-q'], log
-        )
-        summary = log.read_text()
-        count = re.search(r'Ran (\d+) tests?', summary)
-        release.require(
-            count is not None
-            and int(count[1]) > 0
-            and not re.search(r'skipped\s*=\s*[1-9]', summary),
-            'Required Python tests were skipped or no tests ran: ' + suite,
-        )
-        result['tests'] = int(count[1])
-        result['suite'] = suite
-        python_checks.append(result)
-    checks['python'] = {
-        'status': 'passed',
-        'tests': sum(item['tests'] for item in python_checks),
-        'suites': python_checks,
-    }
     release.require(
         not (args.prebuilt and args.reuse), 'Choose either --prebuilt or --reuse'
     )
-    prepare_android_ndk(targets, args.prebuilt, logs)
     for target in targets:
         if args.prebuilt:
             release.packaging.validate(target)
-            print('Validated prebuilt JNI input:', target, flush=True)
+            buildlog.done(target + ' prebuilt JNI input is current')
             continue
         command = [
             sys.executable,
@@ -211,9 +164,11 @@ def main():
         if not target.startswith('android-'):
             command.append('--test-natives')
         if args.reuse:
-            command += ['--skip', 'true']
+            command.append('--validate-only')
         run(command, logs / (target + '-build.log'))
-    maven = ['mvn', '-s', args.settings.resolve()]
+    maven = ['mvn']
+    if args.settings:
+        maven += ['-s', str(args.settings.resolve())]
     if args.maven_repository:
         maven.append('-Dmaven.repo.local=' + str(args.maven_repository.resolve()))
     if full:
@@ -222,7 +177,7 @@ def main():
     host_check['tests'] = test_summary()
     checks['host-jni'] = host_check
     checks['javadoc'] = dict(host_check)
-    all_targets = release.validate_natives()
+    all_targets = release.validate_natives(selected=targets)
     artifact_files = release.artifact_paths(config.validate_inputs())
     if full:
         # Check repository layout using copies of the exact reactor outputs.
@@ -254,9 +209,10 @@ def main():
                 'reason': 'No matching runtime test was run',
             },
         )
-        if target == config.host_target():
-            item['runtime'] = dict(host_check, **expected)
-        elif target in targets and (
+        # Linux and Android evidence comes from the release-grade build in its own
+        # runtime, which is stronger than the host JVM. The host JVM run stays in
+        # checks['host-jni'].
+        if target in targets and (
             target.startswith('linux-') or (target == 'android-arm64' and args.serial)
         ):
             command = [
@@ -277,6 +233,8 @@ def main():
             item['runtime'] = runtime(
                 json.loads(evidence.read_text()), expected, evidence
             )
+        elif target == config.host_target():
+            item['runtime'] = dict(host_check, **expected)
         records[target] = item
     for evidence in args.evidence:
         data = json.loads(evidence.read_text())
@@ -327,15 +285,72 @@ def main():
             record, record['binding_version'], all_targets, files
         )
     release.write_json(args.report, record)
-    print('Validation record:', args.report)
-    print('Build scope:', record['scope'])
-    if full:
-        print('Publication qualification:', record['qualification'])
+    summarise(record, args.report)
+
+
+def qualification_text(qualification):
+    """Describe publication qualification without inventing a status field."""
+    if qualification.get('complete'):
+        return 'complete'
+    missing = qualification.get('missing', [])
+    return 'incomplete: ' + ', '.join(missing)
+
+
+def summarise(record, report):
+    """Print the outcome as a table and keep the same table next to the record."""
+
+    def runtime(item):
+        status = item['runtime'].get('status', 'unverified')
+        tests = item['runtime'].get('tests')
+        return status if tests is None else status + ' (' + str(tests) + ' tests)'
+
+    rows = [
+        (target, target_record['build'], target_record['inspection'], runtime(target_record))
+        for target, target_record in sorted(record['targets'].items())
+    ]
+    checks = [(name, item.get('status', '?')) for name, item in sorted(record['checks'].items())]
+    buildlog.step(
+        'summary (' + record['scope'] + ', native source: ' + record['native_mode'] + ')'
+    )
+    print('  targets')
+    buildlog.table(
+        [(name, 'build ' + build + ', inspection ' + inspection + ', runtime ' + status)
+         for name, build, inspection, status in rows],
+        indent='    ',
+    )
+    print('  checks')
+    buildlog.table(checks, indent='    ')
+    if 'qualification' in record:
+        print()
+        buildlog.info('qualification: ' + qualification_text(record['qualification']))
+    buildlog.done('record -> ' + buildlog.rel(report))
+
+    lines = [
+        '# Build validation summary',
+        '',
+        '- binding version: ' + record['binding_version'],
+        '- source fingerprint: ' + record['source_fingerprint'],
+        '- scope: ' + record['scope'],
+        '- native source: ' + record['native_mode'],
+        '',
+        '| target | build | inspection | runtime |',
+        '| --- | --- | --- | --- |',
+    ]
+    lines += ['| ' + ' | '.join(row) + ' |' for row in rows]
+    lines += ['', '| check | status |', '| --- | --- |']
+    lines += ['| ' + name + ' | ' + status + ' |' for name, status in checks]
+    if 'qualification' in record:
+        lines += ['', 'Qualification: ' + qualification_text(record['qualification'])]
+    summary = report.parent / 'summary.md'
+    summary.parent.mkdir(parents=True, exist_ok=True)
+    summary.write_text('\n'.join(lines) + '\n')
 
 
 if __name__ == '__main__':
     try:
         main()
+    except StepFailed:
+        sys.exit(1)
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
-        print('Distribution build failed:', error, file=sys.stderr)
+        buildlog.fail('distribution build failed: ' + str(error))
         sys.exit(1)

@@ -29,16 +29,16 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import sys
 import zipfile
 import xml.etree.ElementTree as ET
 
 import build_native as build
+import buildlog
 from native_config import ROOT, TARGETS, digest, docker_cache_volume, identity
 
 
 def run(*command, capture=False):
-    print('Running:', *command, flush=True)
+    buildlog.command(command)
     if capture:
         return subprocess.check_output(command, text=True, stderr=subprocess.STDOUT, timeout=240)
     subprocess.run(command, check=True, timeout=240)
@@ -111,7 +111,7 @@ def loader_fixtures(target, work, manifest):
     extra = ''
     if windows:
         pins = json.loads((ROOT / 'native/toolchains.json').read_text())
-        sdk = 'xwin-llvm20-sdk' + pins['windows_sdk'] + '-crt' + pins['windows_crt']
+        sdk = 'xwin-llvm20-sdk' + pins['windows_sdk']
         extra = 'export PATH=/cache/' + sdk + ':$PATH; '
         toolchain = '/cache/' + sdk + '/cmake/clang-cl/' + TARGETS[target].rust + '-toolchain.cmake'
         extra += 'export CMAKE_TOOLCHAIN_FILE=' + toolchain + '; '
@@ -214,6 +214,7 @@ def main():
     (work / 'result.json').write_text(json.dumps({**details, 'status': 'passed', 'platform': args.target,
         'native_sha256': digest(ROOT / '.build/staged' / args.target / 'jni' / TARGETS[args.target].binary),
         'binding_version': manifest['binding_version'], 'binding_abi': manifest['binding_abi']}, indent=2) + '\n')
+    buildlog.done(args.target + ': ' + str(details['tests']) + ' runtime tests passed')
 
 
 if __name__ == '__main__':

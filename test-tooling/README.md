@@ -11,7 +11,7 @@ the host, then install the complete distribution into an isolated repository:
 
 ```sh
 python3 native/scripts/build_native.py --all
-mvn -s .mvn/settings.xml -Pdistribution \
+mvn -Pdistribution \
     -Dmaven.repo.local="$PWD/.build/artifact-repository" install
 python3 scripts/test_artifacts.py --repository .build/artifact-repository
 ```
@@ -95,14 +95,11 @@ APK checksum and emulator properties when `--report` is supplied.
 
 ## Frozen release tooling
 
-The shared release tests live under `scripts/tests/`; run them with
-`python3 -m unittest discover -s scripts/tests -v`. The explicit
-`python3 scripts/test_release_workflow.py` command tests Maven attachment and
-GPG signing using synthetic native inputs, dummy settings and a disposable key.
-Maven 3.9.2+ and Central's bundle-only profile produce the real Central ZIP
-without uploading. Python verifies its body hashes, signatures and sidecars,
-and the tests reject attempts to publish those fixtures.
-See [RELEASING.md](../RELEASING.md) for the evidence contract and release flow.
+`scripts/prepare_release.py` freezes checksummed reactor outputs,
+`scripts/verify_bundle.py` verifies the signed Maven Central bundle, and
+`scripts/verify_release.py` re-checks a frozen directory before publication.
+These run against real build outputs; [RELEASING.md](../RELEASING.md) holds the
+evidence contract and release flow.
 
 ## Complete packaged JNI qualification
 

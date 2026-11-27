@@ -24,9 +24,9 @@ ARG TARGETARCH
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl xz-utils python3 git patch build-essential \
-    clang-20=1:20.1.2-0ubuntu1~24.04.3 llvm-20=1:20.1.2-0ubuntu1~24.04.3 \
-    libclang-20-dev=1:20.1.2-0ubuntu1~24.04.3 lld-20=1:20.1.2-0ubuntu1~24.04.3 \
-    cmake=3.28.3-1build7 ninja-build=1.11.1-2 nasm=2.16.01-1build1 \
+    clang-20 llvm-20 \
+    libclang-20-dev lld-20 \
+    cmake ninja-build nasm \
     && dpkg-query -W > /opt/build-packages.txt \
     && rm -rf /var/lib/apt/lists/*
 

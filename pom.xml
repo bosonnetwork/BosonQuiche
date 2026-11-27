@@ -161,6 +161,14 @@
     </build>
     <profiles>
         <profile>
+            <!-- Build or validate the AAR on its own, without the full
+                 staged desktop set that distribution packaging requires. -->
+            <id>android</id>
+            <modules>
+                <module>android</module>
+            </modules>
+        </profile>
+        <profile>
             <id>distribution</id>
             <activation>
                 <property>

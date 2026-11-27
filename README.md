@@ -66,7 +66,10 @@ other TLS implementations.
 ## Build
 
 Requirements: JDK 11+, Maven 3.6+, Python 3.9+, Rust 1.88+, C/C++ compiler,
-CMake 3.22+ and the host platform development tools. Release bundling and
+CMake 3.22+ and the host platform development tools. These are minimums:
+newer compilers, SDKs and build tools are accepted, and only the values in
+[native/toolchains.json](native/toolchains.json) and `native/CMakeLists.txt`
+are checked. Release bundling and
 publishing require Maven 3.9.2+. The Maven JNI build supports
 macOS and Linux hosts. Cross-platform JNI builds for all six targets use the
 toolchains described below. Runtime regressions cover macOS arm64, Linux
@@ -79,7 +82,7 @@ Install the LLVM tools component for the selected Rust toolchain before building
 
 ```sh
 rustup component add llvm-tools
-mvn -s .mvn/settings.xml verify
+mvn verify
 ```
 
 The first build downloads the upstream source pinned to release tag `0.30.1`
@@ -95,7 +98,7 @@ with quiche. No system installation of quiche or BoringSSL is required.
 To build against an existing checkout with the matching public header:
 
 ```sh
-mvn -s .mvn/settings.xml -Dquiche.source=/absolute/path/to/quiche verify
+mvn -Dquiche.source=/absolute/path/to/quiche verify
 ```
 
 Host sources, native build products and Cargo caches are under ignored `.build/`.
@@ -125,9 +128,9 @@ The project has its own parent POM and manages its dependency versions
 independently of other Boson projects. Normal `verify` builds the host native
 library, runs host JNI tests and attaches the host native classifier JAR. Build
 outputs are under `native/target/` and `api/target/`. The Java API JAR contains
-no native libraries or test fixtures. `-Dnative.skip=true` reuses an existing
-`native/target/native-install` tree instead of compiling; the JNI tests need
-that tree, so the flag is only useful after a successful host build.
+no native libraries or test fixtures. `-Dnative.skip=true` is an expert escape
+hatch that reuses an existing `native/target/native-install` tree; it needs a
+previous host build in the same workspace.
 
 The API module declares the host native classifier as a test dependency, so any
 build that runs the JNI tests must reach the `package` phase where that
@@ -140,7 +143,7 @@ After building all six staged JNI targets, package the complete distribution:
 
 ```sh
 python3 native/scripts/build_native.py --all
-mvn -s .mvn/settings.xml -Pdistribution -DskipTests verify
+mvn -Pdistribution -DskipTests verify
 ```
 
 The `distribution` profile adds the Android module and attaches all five
@@ -156,15 +159,17 @@ JARs and Android source/documentation JARs. Python validates native inputs and
 stages their resources. Production builds do not invoke Gradle. The AAR's
 published POM retains `aar` packaging and its transitive API dependency.
 Its output is `android/target/boson-quiche-android-<version>.aar`, with source
-and documentation companion JARs for Maven Central.
+and documentation companion JARs for Maven Central. Use `-Pandroid` to build or
+check only the AAR (`mvn -Pandroid verify` after staging `android-arm64`); the
+`distribution` profile additionally needs every desktop classifier staged.
 See [consumer verification](test-tooling/README.md) for isolated repository,
 JVM and minified Android consumer checks.
 
 The repository ships a verification-only GitHub Actions workflow
-(`.github/workflows/ci.yml`) with Python, macOS arm64 and Linux amd64/arm64 jobs.
-It never signs or publishes: release artifacts still come from the pinned
-builder path described above, because runner images drift and the frozen
-checksums require byte-identical rebuilds.
+(`.github/workflows/ci.yml`) with generated-sources, macOS arm64 and Linux
+amd64/arm64 jobs. It never signs or publishes: release artifacts still come from
+the pinned builder path described above, because runner images drift and the
+frozen checksums require byte-identical rebuilds.
 
 ## Release preparation
 
@@ -174,10 +179,16 @@ Build and record the complete local distribution with:
 python3 scripts/build_all.py --targets all
 ```
 
-When Android is selected, the full-build script restores a missing project-local
-NDK from the checksum-pinned archive before compiling any native target.
-An explicit `ANDROID_NDK_HOME` must contain the pinned revision and is never
-replaced automatically. Docker build images and host tools remain prerequisites.
+The run prints a per-target and per-check summary as it finishes and writes the
+same table to `.build/validation/summary.md` next to the validation record.
+
+Android builds use an NDK that already exists on the machine. The builder looks
+at `ANDROID_NDK_HOME`, `ANDROID_NDK_ROOT` and the installed SDKs (`ANDROID_HOME`,
+`ANDROID_SDK_ROOT`, the Android Studio default locations), preferring the pinned
+revision and accepting anything at or above the configured minimum. It never
+installs one: `sdkmanager "ndk;<revision>"` or an explicit `ANDROID_NDK_HOME`
+supplies it, and `python3 scripts/check_toolchain.py` reports what the machine
+provides before you build.
 
 After setting a matching release version before building, freeze the exact
 artifact files with `python3 scripts/prepare_release.py --version 0.30.1.1`.
@@ -202,11 +213,11 @@ for the commands, portable Windows kits and artifact-bound evidence reports.
 
 `mvn clean` removes Maven outputs. Host build work and exported Docker outputs
 are under `.build/native/<target>`; staged libraries are under
-`.build/staged/<target>`. Host Cargo caches are under `.build/cache`, source/SDK
-archives are under `.build/downloads` and the project-local Android NDK is under
-`.build/toolchains`. Removing `.build` discards these generated files. The
-full-build script downloads the pinned NDK again when needed. Docker named
-volumes survive this cleanup and can supply incremental work for the next build.
+`.build/staged/<target>`. Host Cargo caches are under `.build/cache` and fetched
+upstream sources are under `.build/downloads`. Removing `.build` discards these
+generated files; the next build uses the host toolchains again and does not
+install replacements. Docker named volumes survive this cleanup and can supply
+incremental work for the next build.
 
 ## Cross-platform native toolchains
 
@@ -227,23 +238,27 @@ references the committed
 which fixes the ABI, the static C++ runtime and includes the NDK toolchain from
 `ANDROID_NDK_HOME`; the Windows presets read the cargo-xwin `clang-cl`
 toolchain from `BOSON_WINDOWS_TOOLCHAIN`. `native/platforms.json` stays the
-single platform matrix, and the Python tests fail if the presets, the POMs or
-that matrix drift apart.
+single platform matrix: preset names, Maven classifiers and the CI jobs derive
+from it, so a mismatch shows up as a failed build rather than as drift.
 
 Use an Apple Silicon Mac with a running Docker-compatible engine (OrbStack or
 Docker Desktop), Rust 1.88+, the Rust `llvm-tools` component, Xcode tools and
 CMake. Rust 1.88 is quiche 0.30.1's declared minimum; Cargo also checks the
 requirements of the locked dependencies. Newer Rust compilers are accepted.
+`python3 scripts/check_toolchain.py` reports each item for the local Maven
+build; `--mode cross-build` adds the Docker images, the NDK and the Rust cross
+targets.
 Docker recipes use readable base-image tags and versioned native compilers/tools.
 The Linux images use `almalinux:8.10` to preserve glibc 2.28 compatibility.
 The Windows image uses `ubuntu:24.04`, runs Linux
 ARM64 and cross-compiles both MSVC targets with LLVM 20 and cargo-xwin 0.23.1.
-[native/toolchains.json](native/toolchains.json) pins the Windows SDK/CRT and
-Android NDK/API versions and is a required, version-controlled build input.
+[native/toolchains.json](native/toolchains.json) holds the minimum versions a
+build accepts and the Windows SDK/CRT selectors used inside the container
+images; the Android NDK is taken from the host, so only its minimum revision is
+recorded there.
 The Windows CRT component selector (`windows_crt_component`, such as
-`14.44.17.14`) differs from the installed package build (`windows_crt`, such as
-`14.44.35220`). The builder passes the selector to cargo-xwin and verifies the
-installed package build before compiling Rust or C/C++ code.
+`14.44.17.14`) chooses what cargo-xwin downloads; the package build it
+resolves is recorded in `build.json` rather than pinned.
 
 Host builds use the selected Rust toolchain. Docker images install `stable`
 by default when their Rust installation layer is built; `RUST_TOOLCHAIN` is an
@@ -255,8 +270,8 @@ upgrades require fresh native outputs. Install `llvm-tools` and any cross
 targets for the selected toolchain after a Rust upgrade.
 
 The builder downloads upstream sources automatically. An existing checkout can
-be selected with `--source /absolute/path/to/quiche`. Create the build images
-and install the pinned Android NDK:
+be selected with `--source /absolute/path/to/quiche`. Create the build images,
+add the Rust pieces the cross builds need, and check what is still missing:
 
 ```sh
 docker buildx build --platform linux/arm64 -f native/docker/Dockerfile.windows \
@@ -267,9 +282,19 @@ docker buildx build --platform linux/amd64 -f native/docker/Dockerfile.linux \
     -t boson-quiche-toolchain:linux-amd64 --load native/docker
 rustup component add llvm-tools
 rustup target add aarch64-linux-android
-python3 native/scripts/build_native.py --fetch-ndk
-python3 native/scripts/build_native.py --preflight
+python3 scripts/check_toolchain.py --mode cross-build
 ```
+
+The check reports the version it found, the version required and whether the
+item is missing, with the command that supplies it. It never installs anything.
+A missing builder image is reported by name together with the `docker buildx`
+line; a build that runs without it stops with the same name instead of a Docker
+traceback. Android needs an NDK at or above `native/toolchains.json`;
+`sdkmanager "ndk;<revision>"` installs one in the Android SDK, or
+`ANDROID_NDK_HOME` points at an existing one. Everything else is a Docker image
+built above or a Rust component added above. A build with an incomplete
+toolchain fails immediately and names what is missing; it does not try to fix
+it.
 
 Build and validate a target by its platform ID:
 
@@ -282,14 +307,12 @@ Build or inspect the JNI shared libraries for all targets:
 
 ```sh
 python3 native/scripts/build_native.py --all
-python3 native/scripts/build_native.py --all --inspect
 ```
 
 The other IDs are `linux-amd64`, `linux-arm64`, `macos-arm64` and
 `android-arm64`. Use Linux ARM64 for the local development loop; Linux x64
 verification uses architecture translation on an ARM64 Mac. Enable Rosetta for
 Linux in the Docker engine when available.
-`ANDROID_NDK_HOME` can select an existing NDK with the exact pinned revision.
 
 The images contain reusable toolchains. Application compilation and tests use
 `docker run --rm`; changing application source does not require rebuilding an
@@ -367,27 +390,20 @@ JDK updates are accepted when the required target headers and JDK 11+ metadata
 are present. Rebuild Docker images after changing their JDK setup. No JVM
 library is linked into the native binary.
 
-Each staged directory also has a sibling `<stage>.tar` bundle with stable file
-order, timestamps, permissions and ownership. Repeat assembly from the same
-inputs produces identical archive bytes; binary reproducibility across SDK
-or compiler changes is not guaranteed. `native/scripts/prove_toolchains.py` remains
-an alias for archive validation.
-
-Run build-tool checks independently with:
-
-```sh
-python3 -m unittest discover -s native/scripts/tests -v
-```
+Each staged directory is a deterministic snapshot of the target's JNI library and
+its `build.json` manifest. Repeat assembly from the same inputs produces the same
+bytes; binary reproducibility across SDK or compiler changes is not guaranteed.
 
 Maven builds isolated loader-test libraries outside runtime resources. They
 verify rejection of legacy libraries and mismatched binding ABI, binding
 version and upstream version in fresh JVMs. `--test-natives` builds these
 fixtures for a selected target.
 
-Prepare compiled tests and run them on the matching Linux container JVMs:
+Build the host artifacts and the test classpath, then run the same suite on the
+matching Linux container JVMs:
 
 ```sh
-mvn -s .mvn/settings.xml process-test-classes
+mvn -pl native,api verify
 python3 native/scripts/build_native.py --target linux-amd64 --test-natives
 python3 native/scripts/test_runtime.py --target linux-amd64
 python3 native/scripts/build_native.py --target linux-arm64 --test-natives
@@ -549,7 +565,7 @@ To refresh documentation after reviewing an upstream release:
 python3 scripts/import_api_docs.py /absolute/path/to/quiche
 python3 scripts/generate_api.py
 python3 scripts/api_docs.py
-mvn -s .mvn/settings.xml verify
+mvn verify
 ```
 
 `scripts/api_docs.py` renders the snapshot and applies Java-specific contracts

@@ -23,19 +23,18 @@
 """Bind platform qualification receipts to the actual Maven distribution."""
 
 import hashlib
-from pathlib import Path
 import zipfile
 
 import release_support as release
-from release_support import ROOT, config
+from release_support import config
 
 
-def repository_identity(repository, root=ROOT):
-    version = config.validate_inputs(root)
-    release.test_artifacts.check(repository, root)
+def repository_identity(repository):
+    version = config.validate_inputs()
+    release.test_artifacts.check(repository)
     files = {
         name: config.digest(repository / name)
-        for name in release.artifact_paths(version, root)
+        for name in release.artifact_paths(version)
     }
     natives = {}
     for target, spec in config.TARGETS.items():
@@ -59,11 +58,11 @@ def repository_identity(repository, root=ROOT):
             natives[target] = hashlib.sha256(package.read(name)).hexdigest()
     return {
         'binding_version': version,
-        'binding_abi': config.binding_abi(root),
+        'binding_abi': config.binding_abi(),
         'artifact_set_sha256': config.identity(files),
         'artifacts': files,
         'native_sha256': natives,
-        'source_fingerprint': release.source_fingerprint(root),
+        'source_fingerprint': release.source_fingerprint(),
     }
 
 

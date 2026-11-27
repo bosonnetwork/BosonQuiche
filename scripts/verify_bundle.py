@@ -36,8 +36,8 @@ import release_support as release
 from release_support import ROOT, config
 
 
-def verify(directory, archive, keyring, root=ROOT):
-    record = release.verify(directory, root=root)
+def verify(directory, archive, keyring):
+    record = release.verify(directory)
     release.require(
         keyring.is_file(), 'An explicit exported public keyring is required'
     )
@@ -122,9 +122,9 @@ def verify(directory, archive, keyring, root=ROOT):
     }
 
 
-def freeze(directory, archive, keyring, output, root=ROOT):
+def freeze(directory, archive, keyring, output):
     """Preserve an already verified Maven ZIP without regenerating its contents."""
-    record = verify(directory, archive, keyring, root)
+    record = verify(directory, archive, keyring)
     release.require(not output.exists(), 'Signed release directory already exists')
     temporary = output.with_name(output.name + '.assembling')
     release.require(

@@ -1,19 +1,13 @@
 {
   "schema": 1,
   "rust_minimum": "1.88.0",
-  "rustup": "1.28.2",
-  "cargo_xwin": "0.23.1",
+  "cmake_minimum": "3.22",
   "windows_image": "boson-quiche-toolchain:windows-arm64",
   "linux_image_prefix": "boson-quiche-toolchain:linux-",
   "windows_sdk": "10.0.26100",
   "windows_crt_component": "14.44.17.14",
-  "windows_crt": "14.44.35220",
   "android": {
-    "revision": "30.0.16248370",
-    "directory": "android-ndk-r30",
     "api": 33,
-    "url": "https://dl.google.com/android/repository/android-ndk-r30-darwin.zip",
-    "sha1": "c060be96767eefbb8e0a27796d6f43115fc1a0c4",
-    "sha256": "d125634de97b26deb1e1bb1a562f9d839aa5803d1784a1e414485f5ccbe6739f"
+    "minimum_revision": "30.0.16248370"
   }
 }

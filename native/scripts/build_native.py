@@ -23,7 +23,6 @@
 """Build, inspect and stage quiche archives or JNI libraries for explicit targets."""
 
 import argparse
-import io
 import json
 import os
 from pathlib import Path
@@ -32,8 +31,8 @@ import re
 import shutil
 import subprocess
 import sys
-import tarfile
 
+import buildlog
 import native_config as config
 import native_toolchains as toolchains
 from native_config import (ROOT, TAG, ARCHIVE_URL, ARCHIVE_SHA256, FEATURES, TARGETS,
@@ -41,16 +40,31 @@ from native_config import (ROOT, TAG, ARCHIVE_URL, ARCHIVE_SHA256, FEATURES, TAR
 
 
 def execute(*command, env=None, cwd=None):
-    print('Running:', *command, flush=True)
+    buildlog.command(command)
     subprocess.run(command, env=env, cwd=cwd, check=True)
+
+
+def docker_image(target, pins):
+    """Return the builder image and its identity, or stop with a clear message."""
+    image = (pins['windows_image'] if target.startswith('windows-')
+             else pins['linux_image_prefix'] + target.split('-')[1])
+    try:
+        return image, json.loads(output('docker', 'image', 'inspect', image))[0]
+    except subprocess.CalledProcessError:
+        pass
+    try:
+        output('docker', 'version', '--format', '{{.Server.Version}}')
+    except (OSError, subprocess.CalledProcessError):
+        raise ValueError('Docker engine is not reachable; start Docker Desktop or OrbStack'
+                         ' and re-run scripts/check_toolchain.py --mode cross-build')
+    raise ValueError('Missing builder image ' + image + '; scripts/check_toolchain.py'
+                     ' --mode cross-build prints the docker buildx command that supplies it')
 
 
 def toolchain_identity(target, pins):
     """Resolve the actual builder before selecting a cache directory."""
     if target.startswith(('linux-', 'windows-')) and platform.system() != 'Linux':
-        image = (pins['windows_image'] if target.startswith('windows-') else
-                 pins['linux_image_prefix'] + target.split('-')[1])
-        info = json.loads(output('docker', 'image', 'inspect', image))[0]
+        image, info = docker_image(target, pins)
         return {'image_id': info['Id'], 'image_arch': info['Architecture'],
                 'recipe_sha256': digest(ROOT / 'native/docker' / (
                     'Dockerfile.windows' if target.startswith('windows-') else 'Dockerfile.linux'))}
@@ -68,12 +82,11 @@ def toolchain_identity(target, pins):
                           sdk=output('xcrun', '--show-sdk-path').strip(),
                           sdk_version=output('xcrun', '--show-sdk-version').strip())
         else:
-            ndk = toolchains.ndk_path(pins)
-            properties = (ndk / 'source.properties').read_text()
-            if not re.search(r'Pkg.Revision\s*=\s*' + re.escape(pins['android']['revision']) + r'\s*$', properties, re.M):
-                raise ValueError('NDK revision differs from native/toolchains.json')
-            result.update(ndk_revision=pins['android']['revision'], ndk_path=str(ndk),
-                          compiler=output(str(ndk / 'toolchains/llvm/prebuilt/darwin-x86_64/bin/clang'), '--version').strip())
+            ndk = toolchains.ndk_install(pins)
+            result.update(ndk_revision=ndk['revision'], ndk_source=ndk['source'],
+                          ndk_path=str(ndk['path']),
+                          compiler=output(str(ndk['path'] / 'toolchains/llvm/prebuilt/darwin-x86_64/bin/clang'),
+                                          '--version').strip())
     else:
         result.update(compiler=output('gcc', '--version').splitlines()[0],
                       libc=output('ldd', '--version').splitlines()[0])
@@ -124,7 +137,7 @@ def jni_identity(target, pins):
     """Record the actual SDK inputs without requiring a specific header hash."""
     directory = jni_headers(target, pins)
     if TARGETS[target].jni == 'android':
-        return {'provider': 'Android NDK', 'version': pins['android']['revision'],
+        return {'provider': 'Android NDK', 'minimum_version': pins['android']['minimum_revision'],
                 'headers': {'jni.h': digest(directory / 'jni.h')}}
     release = directory.parent / 'release'
     if not release.is_file():
@@ -146,13 +159,8 @@ def jni_identity(target, pins):
 def target_jni_identity(target, pins, tools):
     if 'image_id' not in tools:
         return jni_identity(target, pins)
-    # Read the SDK metadata inside the builder, never from the macOS JDK.
-    command = ('import json, build_native as b; '
-               'p=json.loads((b.ROOT/"native/toolchains.json").read_text()); '
-               'print(json.dumps(b.jni_identity(' + repr(target) + ', p)))')
-    return json.loads(output('docker', 'run', '--rm', '--platform', 'linux/' + tools['image_arch'],
-        '--mount', f'type=bind,source={ROOT / "native"},target=/project/native,readonly',
-        '--workdir', '/project/native/scripts', tools['image_id'], 'python3', '-c', command))
+    # The builder image pins the JDK and SDK, so its id is the identity.
+    return {'provider': 'builder image', 'image_id': tools['image_id']}
 
 
 def llvm_tools():
@@ -369,7 +377,7 @@ def update_notices(pins):
     document = {'schema': 1, 'cargo_lock_sha256': digest(ROOT / 'native/Cargo.lock'),
                 'targets': sorted(TARGETS), 'packages': packages}
     (destination / 'notices.json').write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
-    print('Wrote', len(packages), 'package notices to', destination)
+    buildlog.done('wrote ' + str(len(packages)) + ' package notices to ' + buildlog.rel(destination))
     return document
 
 
@@ -472,16 +480,6 @@ def validate_manifest(directory, target, stage, expected=None):
     return manifest
 
 
-def assemble_bundle(directory, destination, manifest):
-    """Stable order, timestamps and ownership make repeat assembly deterministic."""
-    with tarfile.open(destination, 'w', format=tarfile.USTAR_FORMAT) as archive:
-        for name in sorted(list(manifest['files']) + ['build.json']):
-            data = (directory / name).read_bytes()
-            member = tarfile.TarInfo(name)
-            member.size, member.mode, member.mtime = len(data), 0o644, 0
-            archive.addfile(member, io.BytesIO(data))
-
-
 def stage_output(target, stage, work, inputs, revision):
     report = json.loads((work / 'proof.json').read_text())
     destination = ROOT / '.build/staged' / target / stage
@@ -495,7 +493,7 @@ def stage_output(target, stage, work, inputs, revision):
     for name in ('licenses', 'link-support'):
         if (work / name).exists():
             shutil.copytree(work / name, temporary / name)
-    inspection = inspect_binary(binary, target, work) if stage == 'jni' else {'machines': report['machines']}
+    inspection = {key: report[key] for key in ('machines', 'jni_exports') if key in report}
     files = {path.relative_to(temporary).as_posix(): digest(path)
              for path in sorted(temporary.rglob('*')) if path.is_file()}
     # Keep native compiler reports portable, while preserving their provenance.
@@ -511,91 +509,72 @@ def stage_output(target, stage, work, inputs, revision):
     if destination.exists():
         shutil.rmtree(destination)
     temporary.replace(destination)
-    assemble_bundle(destination, destination.parent / (stage + '.tar'), manifest)
     return destination
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', default='')
-    parser.add_argument('--skip', default='false')
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument('--target', type=config.target_id, choices=TARGETS)
     selection.add_argument('--all', action='store_true', help='Select all six targets.')
     parser.add_argument('--stage', choices=('archive', 'jni'), default='jni')
-    parser.add_argument('--quiche-only', action='store_true', help='Alias for --stage archive.')
+    parser.add_argument('--validate-only', action='store_true',
+                        help='Validate the staged output instead of building it.')
     parser.add_argument('--update-lock', action='store_true')
-    parser.add_argument('--inspect', action='store_true', help='Validate staged outputs without building.')
-    parser.add_argument('--report', action='store_true', help='Validate and print all selected manifests as JSON.')
-    parser.add_argument('--preflight', action='store_true')
     parser.add_argument('--update-notices', action='store_true',
                         help='Regenerate the committed dependency notices.')
-    parser.add_argument('--fetch-ndk', action='store_true')
-    parser.add_argument('--test-natives', action='store_true', help='Build isolated native loader test fixtures.')
+    parser.add_argument('--test-natives', action='store_true',
+                        help='Build isolated native loader test fixtures.')
     parser.add_argument('--inside', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     pins = json.loads((ROOT / 'native/toolchains.json').read_text())
-    if args.fetch_ndk:
-        toolchains.fetch_ndk(pins)
-        return 0
-    if args.preflight:
-        return toolchains.preflight(pins)
     if args.update_notices:
         update_notices(pins)
         return 0
-    stage = 'archive' if args.quiche_only else args.stage
     if args.inside:
-        build_in_container(args.target, stage, pins, args.test_natives)
+        build_in_container(args.target, args.stage, pins, args.test_natives)
         return 0
+    if not args.target and not args.all:
+        args.target = config.host_target()
     version = config.validate_inputs()
     source = config.prepare_source(args.source)
     source_hash = config.source_digest(source)
-    targets = list(TARGETS) if args.all or (args.report and not args.target) else [args.target or config.host_target()]
+    targets = list(TARGETS) if args.all else [args.target]
     if args.update_lock:
-        if args.all or args.inspect or args.report or args.skip.lower() == 'true':
+        if args.all or args.validate_only:
             parser.error('--update-lock requires one build target')
         work = ROOT / '.build/lock-refresh'
-        driver = toolchains.prepare_driver(source, work, ROOT / 'native/Cargo.lock', ROOT / 'native/copyright-header.txt')
+        driver = toolchains.prepare_driver(source, work, ROOT / 'native/Cargo.lock',
+                                           ROOT / 'native/copyright-header.txt')
         env = config.clean_environment()
         env['CARGO_HOME'] = str(ROOT / '.build/cache/cargo-home-macos')
         execute('cargo', 'generate-lockfile', '--manifest-path', str(driver / 'Cargo.toml'), env=env)
         shutil.copyfile(driver / 'Cargo.lock', ROOT / 'native/Cargo.lock')
     revision = output('git', '-C', str(ROOT), 'rev-parse', 'HEAD').strip()
-    reports = []
     for target in targets:
         with config.build_lock(ROOT / '.build/locks' / (target + '.lock')):
             tools = toolchain_identity(target, pins)
-            if stage == 'jni':
+            if args.stage == 'jni':
                 tools['jni'] = target_jni_identity(target, pins, tools)
             inputs = build_inputs(target, source_hash, version, pins, tools)
-            destination = ROOT / '.build/staged' / target / stage
-            if args.inspect or args.report or args.skip.lower() == 'true':
-                manifest = validate_manifest(destination, target, stage, inputs)
-                inspected = ROOT / '.build/inspections' / target
-                inspected.mkdir(parents=True, exist_ok=True)
-                if stage == 'jni':
-                    inspect_binary(destination / TARGETS[target].binary, target, inspected)
-                else:
-                    archive = 'boson_quiche_build.lib' if target.startswith('windows-') else 'libboson_quiche_build.a'
-                    toolchains.inspect_archive(destination / archive, target, inspected, llvm_tools())
-                reports.append(manifest)
-                if not args.report:
-                    print('Validated:', target, stage)
+            destination = ROOT / '.build/staged' / target / args.stage
+            if args.validate_only:
+                validate_manifest(destination, target, args.stage, inputs)
+                buildlog.done(target + ' ' + args.stage + ' is current')
                 continue
             work = ROOT / '.build/native' / target / identity(inputs)
             work.mkdir(parents=True, exist_ok=True)
             (work / 'inputs.json').write_text(json.dumps(inputs, indent=2) + '\n')
             if 'image_id' in tools:
-                run_container(target, source, work, tools, stage, args.test_natives)
+                run_container(target, source, work, tools, args.stage, args.test_natives)
             else:
                 env = build_environment(target, pins, ROOT / '.build/cache', container=False)
                 configure_build_install(target, source, work, inputs, pins,
-                                        ROOT / '.build/cache', stage, env, container=False,
+                                        ROOT / '.build/cache', args.stage, env, container=False,
                                         test_natives=args.test_natives)
-            destination = stage_output(target, stage, work, inputs, revision)
-            print('Staged:', target, stage, destination)
-    if args.report:
-        print(json.dumps({'generated_by': 'native/scripts/build_native.py --report', 'builds': reports}, indent=2))
+            destination = stage_output(target, args.stage, work, inputs, revision)
+            buildlog.done(target + ' ' + args.stage + ' -> ' + buildlog.rel(destination))
     return 0
 
 
@@ -603,5 +582,5 @@ if __name__ == '__main__':
     try:
         sys.exit(main())
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
-        print('Native build failed:', error, file=sys.stderr)
+        buildlog.fail('native build failed: ' + str(error))
         sys.exit(1)

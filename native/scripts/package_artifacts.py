@@ -30,6 +30,7 @@ import struct
 import sys
 
 import build_native as build
+import buildlog
 import native_config as config
 from native_config import ROOT, TARGETS, digest, identity
 
@@ -55,28 +56,28 @@ def machine(path):
     raise ValueError('Unsupported native executable: ' + str(path))
 
 
-def validate(target, staged=None, root=ROOT):
-    directory = staged or root / '.build/staged' / target / 'jni'
+def validate(target):
+    directory = ROOT / '.build/staged' / target / 'jni'
     if not (directory / 'build.json').is_file():
         raise ValueError('No staged native build for ' + target + ' in ' + str(directory)
                          + '; run python3 native/scripts/build_native.py --target ' + target)
     manifest = build.validate_manifest(directory, target, 'jni')
     inputs = manifest['inputs']
-    expected = {'binding_version': config.validate_inputs(root), 'binding_abi': config.binding_abi(root),
+    expected = {'binding_version': config.validate_inputs(), 'binding_abi': config.binding_abi(),
                 'quiche_version': config.TAG, 'features': config.FEATURES,
                 'quiche_tag': config.TAG, 'quiche_archive_sha256': config.ARCHIVE_SHA256,
                 'quiche_archive_url': config.ARCHIVE_URL,
                 'rust_target': TARGETS[target].rust, 'classifier': TARGETS[target].classifier,
                 'binary_name': TARGETS[target].binary, 'baseline': TARGETS[target].baseline,
-                'toolchains': json.loads((root / 'native/toolchains.json').read_text()),
-                'cargo_lock_sha256': digest(root / 'native/Cargo.lock'),
-                'cmake_sha256': digest(root / 'native/CMakeLists.txt'),
-                'cmake_presets_sha256': digest(root / 'native/CMakePresets.json'),
-                'cmake_support_sha256': identity({str(path.relative_to(root / 'native')): digest(path)
-                    for path in sorted((root / 'native/cmake').rglob('*')) if path.is_file()}),
-                'jni_declarations_sha256': digest(root / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
-                'jni_sources_sha256': identity({str(path.relative_to(root / 'native')): digest(path)
-                    for path in sorted((root / 'native/src/main/c').glob('*')) if path.is_file()})}
+                'toolchains': json.loads((ROOT / 'native/toolchains.json').read_text()),
+                'cargo_lock_sha256': digest(ROOT / 'native/Cargo.lock'),
+                'cmake_sha256': digest(ROOT / 'native/CMakeLists.txt'),
+                'cmake_presets_sha256': digest(ROOT / 'native/CMakePresets.json'),
+                'cmake_support_sha256': identity({str(path.relative_to(ROOT / 'native')): digest(path)
+                    for path in sorted((ROOT / 'native/cmake').rglob('*')) if path.is_file()}),
+                'jni_declarations_sha256': digest(ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
+                'jni_sources_sha256': identity({str(path.relative_to(ROOT / 'native')): digest(path)
+                    for path in sorted((ROOT / 'native/src/main/c').glob('*')) if path.is_file()})}
     for key, value in expected.items():
         if inputs.get(key) != value:
             raise ValueError('Stale native input ' + target + ': ' + key)
@@ -119,7 +120,7 @@ def desktop(targets, output):
     if output.exists():
         shutil.rmtree(output)
     temporary.replace(output)
-    print('Prepared desktop native resources:', output)
+    buildlog.done('staged desktop natives -> ' + buildlog.rel(output))
 
 
 def android(output):
@@ -142,7 +143,7 @@ def android(output):
     if output.exists():
         shutil.rmtree(output)
     temporary.replace(output)
-    print('Prepared AAR contents:', output)
+    buildlog.done('staged AAR contents -> ' + buildlog.rel(output))
 
 
 def main():
@@ -155,7 +156,7 @@ def main():
     if args.kind == 'validate':
         for target in targets:
             validate(target)
-            print('Validated native packaging input:', target)
+            buildlog.done(target + ' packaging input is current')
     elif args.output is None:
         parser.error('--output is required for resource preparation')
     elif args.kind == 'desktop':
@@ -168,6 +169,6 @@ if __name__ == '__main__':
     try:
         main()
     except (OSError, ValueError, KeyError) as error:
-        print('Native resource preparation failed:', error, file=sys.stderr)
+        buildlog.fail('native resource preparation failed: ' + str(error))
         sys.exit(1)
 

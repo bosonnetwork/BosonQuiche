@@ -28,6 +28,7 @@ from pathlib import Path
 import sys
 
 import release_support as release
+import buildlog
 
 
 def main():
@@ -42,20 +43,19 @@ def main():
     record = json.loads(args.validation.read_text())
     output = (args.output or release.ROOT / '.build/releases' / args.version).resolve()
     result = release.freeze(args.version, record, output)
-    print('Prepared immutable release:', output)
-    print(
-        'Publication qualification:',
-        (
-            'complete'
-            if result['qualification']['complete']
-            else 'incomplete (' + ', '.join(result['qualification']['missing']) + ')'
-        ),
-    )
+    buildlog.done('frozen release -> ' + buildlog.rel(output))
+    qualification = result['qualification']
+    if qualification['complete']:
+        buildlog.done('publication qualification: complete')
+    else:
+        buildlog.warn(
+            'publication qualification incomplete: ' + ', '.join(qualification['missing'])
+        )
 
 
 if __name__ == '__main__':
     try:
         main()
     except (OSError, ValueError, KeyError) as error:
-        print('Release preparation failed:', error, file=sys.stderr)
+        buildlog.fail('release preparation failed: ' + str(error))
         sys.exit(1)

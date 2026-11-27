@@ -62,9 +62,9 @@ class Target:
     android_abi: Optional[str] = None
 
 
-def load_platforms(root=ROOT):
+def load_platforms():
     """Read the single platform matrix shared with CMake and the Maven build."""
-    document = json.loads((root / 'native/platforms.json').read_text())
+    document = json.loads((ROOT / 'native/platforms.json').read_text())
     if document.get('schema') != 1 or not isinstance(document.get('targets'), list):
         raise ValueError('Unsupported native/platforms.json schema')
     targets = {}
@@ -153,24 +153,24 @@ def clean_environment():
             if key not in exact and not key.startswith(prefixes)}
 
 
-def validate_inputs(root=ROOT):
-    pin = json.loads((root / 'native/quiche.json').read_text())
-    if digest(root / 'native/quiche.h') != pin['header_sha256']:
+def validate_inputs():
+    pin = json.loads((ROOT / 'native/quiche.json').read_text())
+    if digest(ROOT / 'native/quiche.h') != pin['header_sha256']:
         raise ValueError('Vendored quiche.h differs from the upstream pin')
-    pom = ET.parse(root / 'pom.xml').getroot()
+    pom = ET.parse(ROOT / 'pom.xml').getroot()
     ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
     if pom.findtext('m:properties/m:quiche.version', namespaces=ns) != pin['tag']:
         raise ValueError('Maven quiche.version differs from the upstream pin')
-    docs = json.loads((root / 'native/api-docs.json').read_text())
+    docs = json.loads((ROOT / 'native/api-docs.json').read_text())
     if docs['version'] != pin['tag']:
         raise ValueError('Documentation snapshot differs from the upstream pin')
-    if not (root / 'native/Cargo.lock').is_file():
+    if not (ROOT / 'native/Cargo.lock').is_file():
         raise ValueError('Missing native/Cargo.lock; refresh it explicitly')
     return pom.findtext('m:version', namespaces=ns)
 
 
-def binding_abi(root=ROOT):
-    value = ET.parse(root / 'pom.xml').getroot().findtext(
+def binding_abi():
+    value = ET.parse(ROOT / 'pom.xml').getroot().findtext(
         '{http://maven.apache.org/POM/4.0.0}properties/{http://maven.apache.org/POM/4.0.0}quiche.binding.abi')
     if not value or not value.isdigit() or int(value) < 1:
         raise ValueError('quiche.binding.abi must be a positive integer')

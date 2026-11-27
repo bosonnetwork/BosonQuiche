@@ -25,7 +25,14 @@ matches the Java metadata and POMs.
 
 ## Build and record validation
 
-Set up the native toolchains described in [README.md](README.md), then run:
+Set up the native toolchains described in [README.md](README.md) and confirm
+them with:
+
+```sh
+python3 scripts/check_toolchain.py --mode cross-build
+```
+
+The check only reports; it installs nothing. Then run:
 
 ```sh
 python3 scripts/build_all.py --targets all
@@ -36,12 +43,14 @@ disposable containers with architecture-specific Docker cache volumes; the
 host receives native outputs and diagnostics. Deleting `.build` does not clear
 these volumes. See the README for cache locations and explicit cleanup commands.
 
-This builds all six JNI targets, runs Python tests and clean Maven verification,
-packages the distribution, runs the Linux JVM suites and writes
-`.build/validation/build.json`. The host JNI suite, strict JavaDoc, artifact
-boundaries and current native versions/ABI/source pins are checked. Logs are
-under `.build/validation/logs/`. A failed build removes the preceding report
-rather than leaving stale success evidence.
+This builds all six JNI targets and runs clean Maven verification, packages the
+distribution, runs the Linux JVM suites and writes
+`.build/validation/build.json`. The same outcome is written in readable form to
+`.build/validation/summary.md` and printed as a table at the end of the run. The
+host JNI suite, strict JavaDoc, artifact boundaries and current native
+versions/ABI/source pins are checked. Logs are under
+`.build/validation/logs/`. A failed build removes the preceding report rather
+than leaving stale success evidence.
 
 Useful options:
 
@@ -58,8 +67,10 @@ Useful options:
   qualification evidence, as described below. Repeat for multiple records.
 - `--report /absolute/path/build.json`: choose a different validation record.
 
-The default settings file is the credential-free project `.mvn/settings.xml`.
-Build tooling does not need personal publishing settings or a signing key.
+No settings file is required, and normal builds never read personal publishing
+settings. Build tooling does not need a
+signing key. Pass `--settings /absolute/path/settings.xml` only when a build
+genuinely needs an isolated settings file.
 
 Build/inspection success and runtime qualification are separate results. Each
 selected target is recorded with native/manifest checksums, version, ABI and
@@ -155,16 +166,13 @@ requires the complete reactor; project selection, resume, nonrecursive builds
 and skip flags are rejected. No Central extension is loaded for this command:
 
 ```sh
-mvn -s .mvn/settings.xml \
-    -Dnative.skip=true \
+mvn \
     -Drelease.directory="$PWD/.build/releases/0.30.1.1" verify
 ```
 
-`native.skip=true` reuses an existing `native/target/native-install` tree instead
-of compiling, which keeps the JNI library and loader fixtures available; Java
-compilation, tests and archive packaging still run. Omit it to rebuild the host
-JNI library, which is required after `mvn clean`. A changed native manifest also
-requires fresh validation and a new prepared candidate.
+The host JNI library is rebuilt from the same sources and Cargo cache, so an
+unchanged tree costs only a relink. A changed native manifest requires fresh
+validation and a new prepared candidate.
 
 This user-run command uses the selected GPG signing key/agent. Supply an explicit
 `-Dgpg.homedir` and `-Dgpg.keyname` when choosing another key. The automated
@@ -174,8 +182,7 @@ No preparation command invokes GPG automatically.
 To let Maven produce the complete Central bundle locally, without upload:
 
 ```sh
-mvn -s .mvn/settings.xml -Prelease-bundle \
-    -Dnative.skip=true \
+mvn -Prelease-bundle \
     -Drelease.directory="$PWD/.build/releases/0.30.1.1" deploy
 ```
 
@@ -208,7 +215,6 @@ Maven server entry named `central` and the intended GPG key:
 
 ```sh
 mvn -Ppublish \
-    -Dnative.skip=true \
     -Drelease.directory="$PWD/.build/releases/0.30.1.1" deploy
 ```
 
@@ -228,26 +234,3 @@ for this purpose. Plugin behavior and archive requirements are documented by
 A GitHub Release can optionally distribute these same frozen JAR/AAR/POM files
 and checksums, or the signed bundle. Use the prepared files as upload inputs;
 no second build is needed. GitHub Release creation is a separate manual action.
-
-## Test the release tooling
-
-```sh
-python3 -m unittest discover -s native/scripts/tests -v
-python3 -m unittest discover -s scripts/tests -v
-python3 scripts/test_release_workflow.py
-```
-
-The workflow test compiles the real Java API with one packaging test and
-explicitly synthetic native inputs. It packages, prepares the candidate and
-runs the real Maven `deploy` lifecycle with the bundle-only profile, a
-short-lived key in a temporary `GNUPGHOME` and dummy settings. Local artifact
-installation is skipped so fixtures stay out of the dependency cache. A
-file-only mirror and loopback Central endpoint keep the test local. Use
-`--maven /absolute/path/to/mvn` to select Maven 3.9.2+ and `--maven-cache` to
-select a populated public dependency cache.
-
-The test verifies all 15 signatures/checksums and rejects changed outputs,
-corrupt bundles, fixture publication, skipped validation and partial reactors.
-It checks the plugin's upload-skipped confirmation. Synthetic native inputs
-cannot execute QUIC or qualify a release. The temporary private key is deleted
-afterward; only a public test key and ignored evidence remain.

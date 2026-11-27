@@ -33,6 +33,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'native/scripts'))
 import native_config as config
+import buildlog
 
 NS = {'m': 'http://maven.apache.org/POM/4.0.0'}
 
@@ -42,8 +43,8 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def check(repository, root=config.ROOT):
-    version = config.validate_inputs(root)
+def check(repository):
+    version = config.validate_inputs()
     base = repository / 'io/bosonnetwork'
 
     def artifact(name, suffix):
@@ -89,7 +90,7 @@ def check(repository, root=config.ROOT):
         properties = dict(line.split('=', 1) for line in metadata.splitlines()
                           if '=' in line and not line.startswith('#'))
         require(properties.get('binding.version') == version
-                and properties.get('binding.abi') == str(config.binding_abi(root))
+                and properties.get('binding.abi') == str(config.binding_abi())
                 and properties.get('quiche.version') == config.TAG,
                 'API binding metadata mismatch')
     for suffix, required in (('-sources.jar', 'io/bosonnetwork/quiche/Quiche.java'),
@@ -102,7 +103,7 @@ def check(repository, root=config.ROOT):
 
     def payload(archive, binary, manifest_name, target):
         manifest = json.loads(archive.read(manifest_name))
-        require(manifest['binding_version'] == version and manifest['binding_abi'] == config.binding_abi(root)
+        require(manifest['binding_version'] == version and manifest['binding_abi'] == config.binding_abi()
                 and manifest['quiche_version'] == config.TAG, 'Native version mismatch: ' + target)
         checksum = hashlib.sha256(archive.read(binary)).hexdigest()
         require(manifest['files'][config.TARGETS[target].binary] == checksum, 'Native payload changed: ' + target)
@@ -142,7 +143,7 @@ def check(repository, root=config.ROOT):
         with zipfile.ZipFile(artifact('boson-quiche-android', suffix)) as companion:
             require('README.md' in companion.namelist(), 'Missing Android source/documentation pointer')
 
-    return {'status': 'passed', 'binding_version': version, 'binding_abi': config.binding_abi(root),
+    return {'status': 'passed', 'binding_version': version, 'binding_abi': config.binding_abi(),
             'desktop_classifier_resources_are_disjoint': True, 'native_payload_sha256': libraries}
 
 
@@ -155,12 +156,12 @@ def main():
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=2) + '\n')
-    print('Artifact boundaries, native checksums, POMs and API attachments: PASS')
+    buildlog.done('artifact boundaries, native checksums, POMs and API attachments')
 
 
 if __name__ == '__main__':
     try:
         main()
     except (OSError, ValueError, KeyError, ET.ParseError, zipfile.BadZipFile) as error:
-        print('Artifact verification failed:', error, file=sys.stderr)
+        buildlog.fail('artifact verification failed: ' + str(error))
         sys.exit(1)

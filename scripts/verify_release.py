@@ -29,6 +29,7 @@ from pathlib import Path
 import sys
 
 import release_support as release
+import buildlog
 
 
 def check_maven_cli():
@@ -69,13 +70,13 @@ def main():
     record = release.verify(args.directory.resolve(), args.publication)
     if args.built_module:
         release.verify_built(record, args.built_module)
-        print('Maven outputs match prepared checksums:', args.built_module)
-    print('Verified frozen release:', record['binding_version'])
+        buildlog.done('Maven outputs match prepared checksums')
+    buildlog.done('verified frozen release ' + record['binding_version'])
 
 
 if __name__ == '__main__':
     try:
         main()
     except (OSError, ValueError, KeyError) as error:
-        print('Release verification failed:', error, file=sys.stderr)
+        buildlog.fail('release verification failed: ' + str(error))
         sys.exit(1)
