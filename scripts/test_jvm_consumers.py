@@ -135,7 +135,7 @@ def main():
     release.require(not work.exists(), 'Choose a fresh qualification work directory')
     work.mkdir(parents=True)
     host = config.host_target()
-    fixtures = ROOT / 'api/target/native-test-libraries'
+    fixtures = ROOT / 'native/target/native-install/test-libraries'
     command = [
         args.maven,
         '-s',

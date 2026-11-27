@@ -39,46 +39,25 @@
             <testResource>
                 <directory>${project.basedir}/src/test/resources</directory>
             </testResource>
-            <testResource>
-                <directory>${project.build.directory}/native-test-resources</directory>
-            </testResource>
         </testResources>
         <plugins>
+            <!-- The cross-target runtime suite runs outside Maven, so it needs the
+                 dependency classpath as data. Standard plugin, no Ant indirection. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
+                <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
                         <id>native-test-classpath</id>
                         <phase>process-test-classes</phase>
                         <goals>
-                            <goal>run</goal>
+                            <goal>build-classpath</goal>
                         </goals>
                         <configuration>
-                            <target>
-                                <pathconvert property="native.test.classpath" refid="maven.test.classpath" />
-                                <echo file="${project.build.directory}/test-classpath.txt" message="${native.test.classpath}" />
-                            </target>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>native-library</id>
-                        <phase>generate-test-resources</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <exec executable="python3" failonerror="true">
-                                    <arg value="${project.basedir}/../native/scripts/build_native.py" />
-                                    <arg value="--source" />
-                                    <arg value="${quiche.source}" />
-                                    <arg value="--skip" />
-                                    <arg value="${native.skip}" />
-                                    <arg value="--test-natives" />
-                                </exec>
-                            </target>
-                            <skip>${skipTests}</skip>
+                            <includeScope>test</includeScope>
+                            <outputFile>${project.build.directory}/test-classpath.txt</outputFile>
+                            <outputAbsoluteArtifactFilename>true</outputAbsoluteArtifactFilename>
+                            <silent>true</silent>
                         </configuration>
                     </execution>
                 </executions>
@@ -95,7 +74,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>-Xcheck:jni -Dboson.quiche.test.libraries=${project.build.directory}/native-test-libraries</argLine>
+                    <argLine>-Xcheck:jni -Dboson.quiche.test.libraries=${maven.multiModuleProjectDirectory}/native/target/native-install/test-libraries</argLine>
                 </configuration>
             </plugin>
             <plugin>
@@ -143,4 +122,62 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <!-- The JNI suite consumes the same classifier artifact a desktop
+             consumer would use, so Maven orders the native module first. -->
+        <profile>
+            <id>native-test-macos-arm64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.bosonnetwork</groupId>
+                    <artifactId>boson-quiche-native</artifactId>
+                    <version>${project.version}</version>
+                    <classifier>macos-aarch64</classifier>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>native-test-linux-amd64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.bosonnetwork</groupId>
+                    <artifactId>boson-quiche-native</artifactId>
+                    <version>${project.version}</version>
+                    <classifier>linux-x86_64</classifier>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>native-test-linux-arm64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.bosonnetwork</groupId>
+                    <artifactId>boson-quiche-native</artifactId>
+                    <version>${project.version}</version>
+                    <classifier>linux-aarch64</classifier>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

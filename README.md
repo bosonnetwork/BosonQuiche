@@ -100,17 +100,41 @@ mvn -s .mvn/settings.xml -Dquiche.source=/absolute/path/to/quiche verify
 
 Host sources, native build products and Cargo caches are under ignored `.build/`.
 Docker builds keep incremental work and dependencies in named volumes, as
-described under [native toolchains](#cross-platform-native-toolchains).
-Host native test resources are copied into `api/target/native-test-resources/`;
-`mvn clean` preserves the cached native inputs. A supplied checkout is not modified.
-`-Dnative.skip=true` validates and restores an existing host library without
-rebuilding it. Missing or stale inputs cause an error.
+described under [native toolchains](#cross-platform-native-toolchains). A
+supplied checkout is not modified.
+
+Maven builds the host native library by running CMake from the `native` module;
+CMake in turn drives Cargo for the pinned quiche archive. No Maven lifecycle
+phase runs Python. The build tree stays in `native/target/cmake` and the install
+tree in `native/target/native-install`, which is where the Java JNI tests find
+both the library and the loader fixtures. `mvn clean` removes both, so the next
+build recompiles the native code. The same build works without Maven:
+
+```sh
+cd native
+cmake --preset host-macos-arm64 -DBOSON_BINDING_ABI=1 \
+    -DBOSON_BINDING_VERSION=0.30.1.1-SNAPSHOT
+cmake --build target/cmake --parallel 4
+```
+
+Use `host-linux-amd64` or `host-linux-arm64` on Linux. Maven selects the preset
+automatically; presets carry the deployment target, JNI platform and target
+triple, while `native/platforms.json` remains the single platform matrix.
 
 The project has its own parent POM and manages its dependency versions
-independently of other Boson projects. Normal `verify` builds the API,
-runs host JNI tests and packages the host native classifier. Build outputs
-are under `api/target/` and `native/target/`. The Java API JAR
-contains no native libraries or test fixtures.
+independently of other Boson projects. Normal `verify` builds the host native
+library, runs host JNI tests and attaches the host native classifier JAR. Build
+outputs are under `native/target/` and `api/target/`. The Java API JAR contains
+no native libraries or test fixtures. `-Dnative.skip=true` reuses an existing
+`native/target/native-install` tree instead of compiling; the JNI tests need
+that tree, so the flag is only useful after a successful host build.
+
+The API module declares the host native classifier as a test dependency, so any
+build that runs the JNI tests must reach the `package` phase where that
+classifier JAR is attached. Use `mvn verify` (or `mvn -pl native,api verify`);
+`mvn test` alone cannot resolve the classifier and stops with a dependency
+error. Building the API module in isolation needs the classifier in the local
+repository or `-am`/`-pl native,api`.
 
 After building all six staged JNI targets, package the complete distribution:
 
@@ -135,6 +159,12 @@ Its output is `android/target/boson-quiche-android-<version>.aar`, with source
 and documentation companion JARs for Maven Central.
 See [consumer verification](test-tooling/README.md) for isolated repository,
 JVM and minified Android consumer checks.
+
+The repository ships a verification-only GitHub Actions workflow
+(`.github/workflows/ci.yml`) with Python, macOS arm64 and Linux amd64/arm64 jobs.
+It never signs or publishes: release artifacts still come from the pinned
+builder path described above, because runner images drift and the frozen
+checksums require byte-identical rebuilds.
 
 ## Release preparation
 
@@ -180,12 +210,25 @@ volumes survive this cleanup and can supply incremental work for the next build.
 
 ## Cross-platform native toolchains
 
-`native/scripts/build_native.py` builds and inspects quiche static archives for
-Linux amd64/arm64, macOS arm64, Android arm64 and Windows amd64/arm64. It uses
-the same quiche tag, checksum, Cargo lockfile and features as the Maven build.
-These checks validate static-library compilation and architecture. Windows
-checks also validate C-API linking and PE metadata; they do not execute the
-Windows binaries. The Maven JNI package is built separately as described above.
+`native/scripts/build_native.py` drives the same CMake project for Linux
+amd64/arm64, macOS arm64, Android arm64 and Windows amd64/arm64. It selects the
+configure preset, the toolchain and the Cargo cache, then stages the library,
+the notices and a `build.json` manifest. It uses the same quiche tag, checksum,
+Cargo lockfile and features as the Maven build, and it never passes compiler or
+linker flags itself: those live in `native/cmake`, in the presets and in the
+Docker images. These checks validate static-library compilation and
+architecture. Windows checks also validate C-API linking and PE metadata; they
+do not execute the Windows binaries.
+
+`native/CMakePresets.json` describes every target. Host presets carry the
+deployment target, the JNI platform and the target triple; `android-arm64`
+references the committed
+[native/cmake/toolchains/android-arm64.cmake](native/cmake/toolchains/android-arm64.cmake),
+which fixes the ABI, the static C++ runtime and includes the NDK toolchain from
+`ANDROID_NDK_HOME`; the Windows presets read the cargo-xwin `clang-cl`
+toolchain from `BOSON_WINDOWS_TOOLCHAIN`. `native/platforms.json` stays the
+single platform matrix, and the Python tests fail if the presets, the POMs or
+that matrix drift apart.
 
 Use an Apple Silicon Mac with a running Docker-compatible engine (OrbStack or
 Docker Desktop), Rust 1.88+, the Rust `llvm-tools` component, Xcode tools and
@@ -528,3 +571,6 @@ is an independent implementation; it does not depend on Netty's internal APIs.
 The Java/JNI source is MIT licensed. The upstream header retains its original
 BSD notice. Native JAR resources include the quiche and dependency licenses,
 BoringSSL notices, and build metadata under `META-INF/` and `native/`.
+Dependency notices come from the committed `native/notices/` tree, which
+`python3 native/scripts/build_native.py --update-notices` regenerates after a
+dependency change; a test fails when it drifts from `native/Cargo.lock`.

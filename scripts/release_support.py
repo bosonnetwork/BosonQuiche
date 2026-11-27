@@ -270,8 +270,7 @@ def validate_natives(root=ROOT):
             'Native archive pin mismatch: ' + target,
         )
         require(
-            manifest['inputs'].get('android_abi')
-            == ('arm64-v8a' if spec.jni == 'android' else None),
+            manifest['inputs'].get('android_abi') == spec.android_abi,
             'Android ABI mismatch: ' + target,
         )
         binary = directory / spec.binary

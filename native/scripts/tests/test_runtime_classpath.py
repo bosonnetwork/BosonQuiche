@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Keep host-only test resources out of cross-platform runtime classpaths."""
+"""Keep the host classifier out of cross-platform runtime classpaths."""
 
 import os
 from pathlib import Path
@@ -34,25 +34,49 @@ import test_runtime as runtime
 
 
 class RuntimeClasspathTest(unittest.TestCase):
-    def test_selected_native_is_injected_once_after_host_resources_are_removed(self):
+    def test_selected_target_replaces_the_host_classifier(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            tests = root / 'api/target/test-classes'
             api = root / 'api/target/classes'
             (api / 'io/bosonnetwork/quiche').mkdir(parents=True)
             (api / 'io/bosonnetwork/quiche/Native.class').write_bytes(b'API fixture')
-            (tests / 'native/macos-aarch64').mkdir(parents=True)
-            (tests / 'native/macos-aarch64/libboson_quiche.dylib').write_bytes(b'host fixture')
+            tests = root / 'api/target/test-classes'
+            (tests / 'io/bosonnetwork/quiche').mkdir(parents=True)
+            (tests / 'io/bosonnetwork/quiche/NativeSuite.class').write_bytes(b'suite fixture')
+            host_jar = root / 'repo/boson-quiche-native-1-macos-aarch64.jar'
+            junit_jar = root / 'repo/junit-jupiter-api-5.jar'
+            for jar in (host_jar, junit_jar):
+                jar.parent.mkdir(parents=True, exist_ok=True)
+                jar.write_bytes(b'jar fixture')
             staged = root / '.build/staged/linux-arm64/jni'
             staged.mkdir(parents=True)
             (staged / 'libboson_quiche.so').write_bytes(b'Linux fixture')
-            (root / 'api/target/test-classpath.txt').write_text(os.pathsep.join(map(str, (tests, api))))
-            with patch.object(runtime, 'ROOT', root), patch.object(runtime.build, 'validate_manifest', return_value={}):
+            (root / 'api/target/test-classpath.txt').write_text(
+                os.pathsep.join(map(str, (host_jar, junit_jar))))
+            with patch.object(runtime, 'ROOT', root), \
+                    patch.object(runtime.build, 'validate_manifest', return_value={}):
                 work, _, entries = runtime.prepare('linux-arm64')
-            self.assertFalse((work / entries[0] / 'native').exists())
-            self.assertEqual(b'Linux fixture',
-                (work / entries[1] / 'native/linux-aarch64/libboson_quiche.so').read_bytes())
-            self.assertTrue((tests / 'native/macos-aarch64/libboson_quiche.dylib').exists())
+            self.assertEqual('target-native', entries[-1])
+            native = work / 'target-native/native/linux-aarch64/libboson_quiche.so'
+            self.assertEqual(b'Linux fixture', native.read_bytes())
+            # The host classifier jar is dropped; the remaining dependency keeps
+            # its index, so the skipped one is visible in the gap.
+            self.assertEqual(['api-classes', 'api-test-classes', 'dependency-1.jar', 'target-native'],
+                             entries)
+            self.assertEqual(b'API fixture',
+                             (work / 'api-classes/io/bosonnetwork/quiche/Native.class').read_bytes())
+            self.assertEqual(b'suite fixture',
+                             (work / 'api-test-classes/io/bosonnetwork/quiche/NativeSuite.class').read_bytes())
+
+
+class AndroidCaseCountTest(unittest.TestCase):
+    def test_measured_case_count_is_read_from_the_device_output(self):
+        output = 'Passed some cases\nAndroid JNI cases: 30\n'
+        self.assertEqual(30, runtime.android_cases(output))
+
+    def test_missing_case_count_is_rejected(self):
+        with self.assertRaises(ValueError):
+            runtime.android_cases('no report here')
 
 
 if __name__ == '__main__':

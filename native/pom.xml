@@ -11,38 +11,158 @@
     <packaging>pom</packaging>
     <name>Boson Quiche Desktop Natives</name>
     <description>Prebuilt desktop JNI libraries for BosonQuiche.</description>
-    <!-- Order host native packaging after API test-resource preparation, including parallel builds. -->
-    <dependencies>
-        <dependency>
-            <groupId>io.bosonnetwork</groupId>
-            <artifactId>boson-quiche</artifactId>
-            <version>${project.version}</version>
-            <scope>provided</scope>
-            <optional>true</optional>
-        </dependency>
-    </dependencies>
     <url>https://github.com/bosonnetwork/BosonQuiche</url>
+    <properties>
+        <!-- Maven drives CMake; CMake decides what native code is built. -->
+        <native.skip>false</native.skip>
+        <native.skipIfEmpty>true</native.skipIfEmpty>
+    </properties>
     <build>
         <plugins>
+            <!-- Host build: configure, compile and install with CMake, which also
+                 drives Cargo for the pinned quiche archive. No Python involved. -->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
                 <executions>
                     <execution>
-                        <id>prepare-native-resources</id>
-                        <phase>prepare-package</phase>
+                        <id>cmake-configure</id>
+                        <phase>generate-resources</phase>
                         <goals>
-                            <goal>run</goal>
+                            <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <target>
-                                <exec executable="python3" failonerror="true">
-                                    <arg value="${project.basedir}/scripts/package_artifacts.py" />
-                                    <arg value="desktop" />
-                                    <arg value="--output" />
-                                    <arg value="${project.build.directory}/native-resources" />
-                                </exec>
-                            </target>
+                            <skip>${native.skip}</skip>
+                            <executable>cmake</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <arguments>
+                                <argument>--preset</argument>
+                                <argument>${native.preset}</argument>
+                                <argument>-B</argument>
+                                <argument>${project.build.directory}/cmake</argument>
+                                <argument>-DCMAKE_INSTALL_PREFIX=${project.build.directory}/native-install</argument>
+                                <argument>-DJNI_INCLUDE=${java.home}/include</argument>
+                                <argument>-DQUICHE_SOURCE=${quiche.source}</argument>
+                                <argument>-DBOSON_BINDING_ABI=${quiche.binding.abi}</argument>
+                                <argument>-DBOSON_BINDING_VERSION=${project.version}</argument>
+                            </arguments>
+                            <environmentVariables>
+                                <CMAKE_BUILD_PARALLEL_LEVEL>4</CMAKE_BUILD_PARALLEL_LEVEL>
+                            </environmentVariables>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>cmake-build</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${native.skip}</skip>
+                            <executable>cmake</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <arguments>
+                                <argument>--build</argument>
+                                <argument>${project.build.directory}/cmake</argument>
+                                <argument>--parallel</argument>
+                                <argument>4</argument>
+                            </arguments>
+                            <environmentVariables>
+                                <CMAKE_BUILD_PARALLEL_LEVEL>4</CMAKE_BUILD_PARALLEL_LEVEL>
+                            </environmentVariables>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>cmake-install</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${native.skip}</skip>
+                            <executable>cmake</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <arguments>
+                                <argument>--install</argument>
+                                <argument>${project.build.directory}/cmake</argument>
+                                <argument>--prefix</argument>
+                                <argument>${project.build.directory}/native-install</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Package exactly what the host build just installed. The clean step
+                 prevents resources from an earlier distribution build leaking in. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>clean-native-resources</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.directory}/native-resources</directory>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>host-native-resources</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/native-resources/${native.classifier}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}/native-install</directory>
+                                    <includes>
+                                        <include>native/${native.classifier}/**</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>host-native-notices</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/native-resources/${native.classifier}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/notices</directory>
+                                    <targetPath>META-INF/boson-quiche-native/${native.classifier}/licenses</targetPath>
+                                    <excludes>
+                                        <exclude>notices.json</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/..</directory>
+                                    <targetPath>META-INF/boson-quiche-native/${native.classifier}</targetPath>
+                                    <includes>
+                                        <include>LICENSE</include>
+                                        <include>NOTICE</include>
+                                    </includes>
+                                </resource>
+                            </resources>
                         </configuration>
                     </execution>
                 </executions>
@@ -51,7 +171,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
-                    <skipIfEmpty>true</skipIfEmpty>
+                    <skipIfEmpty>${native.skipIfEmpty}</skipIfEmpty>
                     <archive>
                         <addMavenDescriptor>false</addMavenDescriptor>
                     </archive>
@@ -114,9 +234,49 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- MORE -->
         </plugins>
     </build>
     <profiles>
+        <profile>
+            <id>host-macos-arm64</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <native.preset>host-macos-arm64</native.preset>
+                <native.classifier>macos-aarch64</native.classifier>
+            </properties>
+        </profile>
+        <profile>
+            <id>host-linux-amd64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <properties>
+                <native.preset>host-linux-amd64</native.preset>
+                <native.classifier>linux-x86_64</native.classifier>
+            </properties>
+        </profile>
+        <profile>
+            <id>host-linux-arm64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <native.preset>host-linux-arm64</native.preset>
+                <native.classifier>linux-aarch64</native.classifier>
+            </properties>
+        </profile>
         <profile>
             <id>distribution</id>
             <activation>
@@ -124,8 +284,38 @@
                     <name>release.directory</name>
                 </property>
             </activation>
+            <properties>
+                <!-- Packaging comes from validated staged inputs, not the host
+                     build; the host build still runs so the JNI tests and the
+                     loader fixtures are available. -->
+                <native.skipIfEmpty>false</native.skipIfEmpty>
+            </properties>
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-clean-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>clean-native-resources</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>host-native-resources</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>host-native-notices</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-antrun-plugin</artifactId>
@@ -136,7 +326,7 @@
                                 <goals>
                                     <goal>run</goal>
                                 </goals>
-                                <configuration combine.self="override">
+                                <configuration>
                                     <target>
                                         <exec executable="python3" failonerror="true">
                                             <arg value="${project.basedir}/scripts/package_artifacts.py" />

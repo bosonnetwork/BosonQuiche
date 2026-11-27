@@ -11,7 +11,7 @@ the host, then install the complete distribution into an isolated repository:
 
 ```sh
 python3 native/scripts/build_native.py --all
-mvn -s .mvn/settings.xml -Pdistribution -Dnative.skip=true \
+mvn -s .mvn/settings.xml -Pdistribution \
     -Dmaven.repo.local="$PWD/.build/artifact-repository" install
 python3 scripts/test_artifacts.py --repository .build/artifact-repository
 ```

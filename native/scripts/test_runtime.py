@@ -37,9 +37,20 @@ import build_native as build
 from native_config import ROOT, TARGETS, digest, docker_cache_volume, identity
 
 
-def run(*command):
+def run(*command, capture=False):
     print('Running:', *command, flush=True)
+    if capture:
+        return subprocess.check_output(command, text=True, stderr=subprocess.STDOUT, timeout=240)
     subprocess.run(command, check=True, timeout=240)
+    return ''
+
+
+def android_cases(output):
+    """Read the case count the on-device suite reports."""
+    match = re.search(r'Android JNI cases: (\d+)', output)
+    if not match:
+        raise ValueError('Android suite did not report its case count')
+    return int(match.group(1))
 
 
 def prepare(target):
@@ -51,24 +62,33 @@ def prepare(target):
     work.mkdir(parents=True)
     classpath_file = ROOT / 'api/target/test-classpath.txt'
     if not classpath_file.is_file():
-        raise ValueError('Run Maven process-test-classes or verify before runtime tests')
+        raise ValueError('Missing api/target/test-classpath.txt; run Maven verify first')
+
     entries = []
+    # The suite and the API classes are ordinary Maven build outputs.
+    for folder, name in (('classes', 'api-classes'), ('test-classes', 'api-test-classes')):
+        source = ROOT / 'api/target' / folder
+        if not source.is_dir():
+            raise ValueError('Missing Maven output: ' + str(source))
+        shutil.copytree(source, work / name)
+        entries.append(name)
+    # Dependency JARs come from Maven. The host classifier must never travel with
+    # them, because the selected target provides the native library.
     for index, value in enumerate(classpath_file.read_text().strip().split(os.pathsep)):
         source = Path(value)
-        name = 'entry-' + str(index) + ('.jar' if source.is_file() else '')
-        destination = work / name
-        if source.is_dir():
-            shutil.copytree(source, destination)
-            # Maven keeps host natives in test resources. Remove them from every
-            # copied directory before injecting the selected target once.
-            shutil.rmtree(destination / 'native', ignore_errors=True)
-            if (destination / 'io/bosonnetwork/quiche/Native.class').is_file():
-                shutil.copytree(staged, destination / 'native' / TARGETS[target].classifier)
-        elif source.is_file():
-            shutil.copyfile(source, destination)
-        else:
-            raise ValueError('Missing test classpath input: ' + value)
+        if not source.is_file():
+            raise ValueError('Missing dependency JAR: ' + value)
+        if source.name.startswith('boson-quiche-native-'):
+            continue
+        name = 'dependency-' + str(index) + '.jar'
+        shutil.copyfile(source, work / name)
         entries.append(name)
+    # The staged build joins the classpath as a directory, which is exactly how the
+    # loader expects to find /native/<classifier>/<library>.
+    native = work / 'target-native' / 'native' / TARGETS[target].classifier
+    native.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(staged, native)
+    entries.append('target-native')
     return work, manifest, entries
 
 
@@ -107,8 +127,8 @@ def loader_fixtures(target, work, manifest):
 
 def linux(target, work, manifest, entries):
     native_work = ROOT / '.build/native' / target / manifest['input_identity']
-    if (native_work / 'jni/test-libraries').is_dir():
-        shutil.copytree(native_work / 'jni/test-libraries', work / 'test-libraries')
+    if (native_work / 'install/test-libraries').is_dir():
+        shutil.copytree(native_work / 'install/test-libraries', work / 'test-libraries')
     else:
         loader_fixtures(target, work, manifest)
     builder = manifest['inputs']['builder']
@@ -161,10 +181,12 @@ def android(work, entries, sdk, serial):
     destination = '/data/local/tmp/boson-quiche-native-tests'
     run(adb, '-s', serial, 'shell', 'mkdir', '-p', destination)
     run(adb, '-s', serial, 'push', str(payload) + '/.', destination + '/')
-    run(adb, '-s', serial, 'shell', 'env', 'CLASSPATH=' + destination + '/suite.zip',
+    output = run(adb, '-s', serial, 'shell', 'env', 'CLASSPATH=' + destination + '/suite.zip',
         'dalvikvm', '-Xcheck:jni', '-Djava.library.path=' + destination + '/lib',
         '-Dboson.quiche.test.resources=' + destination + '/fixtures',
-        '-Djava.io.tmpdir=' + destination, 'io.bosonnetwork.quiche.NativeSuite', 'android')
+        '-Djava.io.tmpdir=' + destination, 'io.bosonnetwork.quiche.NativeSuite', 'android',
+        capture=True)
+    return android_cases(output)
 
 
 def main():
@@ -174,10 +196,11 @@ def main():
     parser.add_argument('--serial')
     args = parser.parse_args()
     work, manifest, entries = prepare(args.target)
+    cases = None
     if args.target.startswith('linux-'):
         linux(args.target, work, manifest, entries)
     elif args.android_sdk:
-        android(work, entries, args.android_sdk.resolve(), args.serial)
+        cases = android(work, entries, args.android_sdk.resolve(), args.serial)
     else:
         parser.error('--android-sdk and --serial are required for Android')
     details = {}
@@ -187,7 +210,7 @@ def main():
         details['java_os'] = 'Linux'
     else:
         details['page_size'] = int(subprocess.check_output([str(args.android_sdk / 'platform-tools/adb'), '-s', args.serial, 'shell', 'getconf', 'PAGESIZE'], text=True))
-        details['tests'] = 30
+        details['tests'] = cases
     (work / 'result.json').write_text(json.dumps({**details, 'status': 'passed', 'platform': args.target,
         'native_sha256': digest(ROOT / '.build/staged' / args.target / 'jni' / TARGETS[args.target].binary),
         'binding_version': manifest['binding_version'], 'binding_abi': manifest['binding_abi']}, indent=2) + '\n')
@@ -195,4 +218,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

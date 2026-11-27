@@ -52,7 +52,7 @@ def repository_identity(repository, root=ROOT):
         )
         with zipfile.ZipFile(archive) as package:
             name = (
-                'jni/arm64-v8a/' + spec.binary
+                'jni/' + spec.android_abi + '/' + spec.binary
                 if spec.jni == 'android'
                 else 'native/' + spec.classifier + '/' + spec.binary
             )

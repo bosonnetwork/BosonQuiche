@@ -148,13 +148,6 @@ class NativeBuildTest(unittest.TestCase):
             self.assertEqual(archive.getnames(), sorted(archive.getnames()))
             self.assertTrue(all(item.mtime == 0 and item.uid == 0 for item in archive))
 
-    def test_resources_restore_after_maven_output_is_deleted(self):
-        with patch.object(build, 'ROOT', self.root):
-            build.stage_maven(self.directory, 'macos-arm64')
-            shutil.rmtree(self.root / 'api/target')
-            build.stage_maven(self.directory, 'macos-arm64')
-        self.assertTrue((self.root / 'api/target/native-test-resources/native/macos-aarch64/libboson_quiche.dylib').is_file())
-
     def test_cross_environment_drops_macos_and_compiler_settings(self):
         with patch.dict(os.environ, {'SDKROOT': '/host/sdk', 'CC': 'host-cc',
                                      'CMAKE_OSX_ARCHITECTURES': 'host', 'RUSTFLAGS': 'host flags'}):

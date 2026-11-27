@@ -213,7 +213,7 @@ def main():
         if args.reuse:
             command += ['--skip', 'true']
         run(command, logs / (target + '-build.log'))
-    maven = ['mvn', '-s', args.settings.resolve(), '-Dnative.skip=true']
+    maven = ['mvn', '-s', args.settings.resolve()]
     if args.maven_repository:
         maven.append('-Dmaven.repo.local=' + str(args.maven_repository.resolve()))
     if full:

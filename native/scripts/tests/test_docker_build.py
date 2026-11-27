@@ -57,94 +57,88 @@ class DockerBuildTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             config.docker_cache_volume('macos-arm64', 'arm64')
 
-    def fake_archive(self, target, source, work, native, pins, cache):
-        name = 'boson_quiche_build.lib' if target.startswith('windows-') else 'libboson_quiche_build.a'
-        archive = work / 'rust' / name
-        archive.parent.mkdir(exist_ok=True)
+    def fake_build(self, target, source, work, inputs, pins, cache, stage, env, container, test_natives):
+        spec = config.TARGETS[target]
+        shutil.rmtree(work / 'install', ignore_errors=True)
+        build_tree = work / 'cmake'
+        (build_tree / 'rust').mkdir(parents=True, exist_ok=True)
+        (build_tree / 'CMakeCache.txt').write_text('internal configuration')
+        archive = build_tree / 'rust' / ('boson_quiche_build.lib' if target.startswith('windows-')
+                                         else 'libboson_quiche_build.a')
         archive.write_bytes(b'static archive')
-        (work / 'driver').mkdir(exist_ok=True)
+        native = work / 'install' / 'native' / spec.classifier
+        native.mkdir(parents=True, exist_ok=True)
+        (native / spec.binary).write_bytes(b'JNI library')
+        if test_natives:
+            (work / 'install/test-libraries').mkdir(parents=True, exist_ok=True)
+            (work / 'install/test-libraries/libloader_abi.so').write_bytes(b'loader fixture')
         (work / 'licenses').mkdir(exist_ok=True)
         (work / 'licenses/LICENSE').write_text('fixture notice')
+        (work / 'link-support').mkdir(exist_ok=True)
         (work / 'cargo.log').write_text('build diagnostics')
         (work / 'archive-symbols.txt').write_text('archive symbols')
         (work / 'proof.json').write_text(json.dumps({'archive': str(archive), 'status': 'passed'}))
-
-    def fake_jni(self, target, source, work, native, pins, cache, headers, test_natives):
-        directory = work / 'jni'
-        directory.mkdir(exist_ok=True)
-        (directory / 'CMakeCache.txt').write_text('internal configuration')
-        (directory / config.TARGETS[target].binary).write_bytes(b'JNI library')
-        if test_natives:
-            (directory / 'test-libraries').mkdir(exist_ok=True)
-            (directory / 'test-libraries/libloader_abi.so').write_bytes(b'loader fixture')
 
     def inside(self, target='linux-arm64', stage='jni', test_natives=True):
         build.build_in_container(target, stage, {}, test_natives, self.destination,
                                  self.root / 'source', self.cache)
 
     def test_incremental_work_survives_deleted_host_exports(self):
-        with patch.object(build.toolchains, 'build_archive', side_effect=self.fake_archive) as archive, \
-                patch.object(build, 'compile_jni', side_effect=self.fake_jni), \
-                patch.object(build, 'jni_headers', return_value=self.root / 'headers'):
+        with patch.object(build, 'configure_build_install', side_effect=self.fake_build) as run:
             self.inside()
-            work = archive.call_args.args[2]
-            (work / 'rust/incremental-marker').write_text('cached objects')
+            work = run.call_args.args[2]
+            (work / 'cmake/incremental-marker').write_text('cached objects')
             # Simulate deleting host build outputs while retaining the Docker volume.
             shutil.rmtree(self.destination)
             self.destination.mkdir()
             (self.destination / 'inputs.json').write_text(json.dumps(self.inputs))
             self.inside()
-        self.assertEqual(archive.call_args.args[2], work)
-        self.assertTrue((work / 'rust/incremental-marker').is_file())
-        self.assertTrue((work / 'jni/CMakeCache.txt').is_file())
+        self.assertEqual(run.call_args.args[2], work)
+        self.assertTrue((work / 'cmake/incremental-marker').is_file())
+        self.assertTrue((work / 'cmake/CMakeCache.txt').is_file())
         self.assertFalse((self.destination / 'rust').exists())
+        self.assertFalse((self.destination / 'cmake').exists())
         self.assertFalse((self.destination / 'driver').exists())
-        self.assertFalse((self.destination / 'jni/CMakeCache.txt').exists())
-        self.assertEqual((self.destination / 'jni/libboson_quiche.so').read_bytes(), b'JNI library')
-        self.assertTrue((self.destination / 'jni/test-libraries/libloader_abi.so').is_file())
+        self.assertFalse((self.destination / 'cmake/CMakeCache.txt').exists())
+        self.assertEqual((self.destination / 'install/native/linux-aarch64/libboson_quiche.so').read_bytes(),
+                         b'JNI library')
+        self.assertTrue((self.destination / 'install/test-libraries/libloader_abi.so').is_file())
         self.assertTrue((self.destination / 'licenses/LICENSE').is_file())
         self.assertTrue((self.destination / 'cargo.log').is_file())
         proof = json.loads((self.destination / 'proof.json').read_text())
         self.assertTrue(Path(proof['archive']).is_file())
 
     def test_targets_and_changed_inputs_use_separate_work_directories(self):
-        with patch.object(build.toolchains, 'build_archive', side_effect=self.fake_archive) as archive:
+        with patch.object(build, 'configure_build_install', side_effect=self.fake_build) as run:
             self.inside(stage='archive')
-            first = archive.call_args.args[2]
+            first = run.call_args.args[2]
             self.inside(target='linux-amd64', stage='archive')
-            second = archive.call_args.args[2]
+            second = run.call_args.args[2]
             (self.destination / 'inputs.json').write_text(json.dumps(dict(self.inputs, binding_abi=2)))
             self.inside(stage='archive')
-            third = archive.call_args.args[2]
+            third = run.call_args.args[2]
         self.assertEqual(len({first, second, third}), 3)
         self.assertTrue(all(path.is_relative_to(self.cache) for path in (first, second, third)))
 
     def test_jni_failure_exports_diagnostics_without_a_success_proof(self):
-        with patch.object(build.toolchains, 'build_archive', side_effect=self.fake_archive), \
-                patch.object(build, 'jni_headers', return_value=self.root / 'headers'), \
-                patch.object(build, 'compile_jni', side_effect=RuntimeError('link failed')):
+        with patch.object(build, 'configure_build_install', side_effect=RuntimeError('link failed')):
             with self.assertRaisesRegex(RuntimeError, 'link failed'):
                 self.inside()
-        self.assertEqual((self.destination / 'cargo.log').read_text(), 'build diagnostics')
-        self.assertTrue((self.destination / 'archive-symbols.txt').is_file())
         self.assertFalse((self.destination / 'proof.json').exists())
 
     def test_windows_exports_preserve_import_libraries_and_remove_old_fixtures(self):
         target = 'windows-arm64'
         self.inputs['platform'] = target
         (self.destination / 'inputs.json').write_text(json.dumps(self.inputs))
-        with patch.object(build.toolchains, 'build_archive', side_effect=self.fake_archive) as archive, \
-                patch.object(build, 'compile_jni', side_effect=self.fake_jni), \
-                patch.object(build, 'jni_headers', return_value=self.root / 'headers'):
+        with patch.object(build, 'configure_build_install', side_effect=self.fake_build) as run:
             self.inside(target=target)
-            work = archive.call_args.args[2]
-            (work / 'link-support').mkdir()
+            work = run.call_args.args[2]
             (work / 'link-support/windows.lib').write_bytes(b'import library')
             self.inside(target=target, test_natives=False)
         self.assertTrue((self.destination / 'boson_quiche_build.lib').is_file())
-        self.assertTrue((self.destination / 'jni/boson_quiche.dll').is_file())
+        self.assertTrue((self.destination / 'install/native/windows-aarch64/boson_quiche.dll').is_file())
         self.assertEqual((self.destination / 'link-support/windows.lib').read_bytes(), b'import library')
-        self.assertFalse((self.destination / 'jni/test-libraries').exists())
+        self.assertFalse((self.destination / 'install/test-libraries').exists())
 
     def test_container_mounts_export_directory_and_named_volume(self):
         tools = {'image_id': 'sha256:test', 'image_arch': 'arm64'}

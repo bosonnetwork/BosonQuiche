@@ -1,0 +1,599 @@
+{
+  "cargo_lock_sha256": "242d550d7ea85ad2f501a10fb344fc1603592cebb93109621c960cdbdd183184",
+  "packages": [
+    {
+      "notices": [
+        "arrayvec-0.7.8/LICENSE-APACHE",
+        "arrayvec-0.7.8/LICENSE-MIT"
+      ],
+      "package": "arrayvec",
+      "version": "0.7.8"
+    },
+    {
+      "notices": [
+        "autocfg-1.5.1/LICENSE-APACHE",
+        "autocfg-1.5.1/LICENSE-MIT"
+      ],
+      "package": "autocfg",
+      "version": "1.5.1"
+    },
+    {
+      "notices": [
+        "bindgen-0.72.1/LICENSE"
+      ],
+      "package": "bindgen",
+      "version": "0.72.1"
+    },
+    {
+      "notices": [
+        "bitflags-2.13.2/LICENSE-APACHE",
+        "bitflags-2.13.2/LICENSE-MIT"
+      ],
+      "package": "bitflags",
+      "version": "2.13.2"
+    },
+    {
+      "notices": [
+        "boring-5.5.0/LICENSE"
+      ],
+      "package": "boring",
+      "version": "5.5.0"
+    },
+    {
+      "notices": [
+        "BoringSSL/LICENSE",
+        "boring-sys-5.5.0/LICENSE-MIT"
+      ],
+      "package": "boring-sys",
+      "version": "5.5.0"
+    },
+    {
+      "notices": [
+        "bytes-1.12.1/LICENSE"
+      ],
+      "package": "bytes",
+      "version": "1.12.1"
+    },
+    {
+      "notices": [
+        "cc-1.11.2/LICENSE-APACHE",
+        "cc-1.11.2/LICENSE-MIT"
+      ],
+      "package": "cc",
+      "version": "1.11.2"
+    },
+    {
+      "notices": [
+        "cdylib-link-lines-0.1.5/LICENSE"
+      ],
+      "package": "cdylib-link-lines",
+      "version": "0.1.5"
+    },
+    {
+      "notices": [
+        "cexpr-0.6.0/LICENSE-APACHE",
+        "cexpr-0.6.0/LICENSE-MIT"
+      ],
+      "package": "cexpr",
+      "version": "0.6.0"
+    },
+    {
+      "notices": [
+        "cfg-if-1.0.5/LICENSE-APACHE",
+        "cfg-if-1.0.5/LICENSE-MIT"
+      ],
+      "package": "cfg-if",
+      "version": "1.0.5"
+    },
+    {
+      "notices": [
+        "clang-sys-1.9.1/LICENSE.txt"
+      ],
+      "package": "clang-sys",
+      "version": "1.9.1"
+    },
+    {
+      "notices": [
+        "cmake-0.1.58/LICENSE-APACHE",
+        "cmake-0.1.58/LICENSE-MIT"
+      ],
+      "package": "cmake",
+      "version": "0.1.58"
+    },
+    {
+      "notices": [
+        "darling-0.24.1/LICENSE"
+      ],
+      "package": "darling",
+      "version": "0.24.1"
+    },
+    {
+      "notices": [
+        "darling_core-0.24.1/LICENSE"
+      ],
+      "package": "darling_core",
+      "version": "0.24.1"
+    },
+    {
+      "notices": [
+        "darling_macro-0.24.1/LICENSE"
+      ],
+      "package": "darling_macro",
+      "version": "0.24.1"
+    },
+    {
+      "notices": [
+        "data-encoding-2.11.1/LICENSE"
+      ],
+      "package": "data-encoding",
+      "version": "2.11.1"
+    },
+    {
+      "notices": [
+        "debug_panic-0.2.1/LICENSE"
+      ],
+      "package": "debug_panic",
+      "version": "0.2.1"
+    },
+    {
+      "notices": [
+        "either-1.19.0/LICENSE-APACHE",
+        "either-1.19.0/LICENSE-MIT"
+      ],
+      "package": "either",
+      "version": "1.19.0"
+    },
+    {
+      "notices": [
+        "enum_dispatch-0.3.13/LICENSE"
+      ],
+      "package": "enum_dispatch",
+      "version": "0.3.13"
+    },
+    {
+      "notices": [
+        "equivalent-1.0.3/LICENSE-APACHE",
+        "equivalent-1.0.3/LICENSE-MIT"
+      ],
+      "package": "equivalent",
+      "version": "1.0.3"
+    },
+    {
+      "notices": [
+        "find-msvc-tools-0.1.15/LICENSE-APACHE",
+        "find-msvc-tools-0.1.15/LICENSE-MIT"
+      ],
+      "package": "find-msvc-tools",
+      "version": "0.1.15"
+    },
+    {
+      "notices": [
+        "foldhash-0.2.0/LICENSE"
+      ],
+      "package": "foldhash",
+      "version": "0.2.0"
+    },
+    {
+      "notices": [
+        "foreign-types-0.5.0/LICENSE-APACHE",
+        "foreign-types-0.5.0/LICENSE-MIT"
+      ],
+      "package": "foreign-types",
+      "version": "0.5.0"
+    },
+    {
+      "notices": [
+        "foreign-types-macros-0.2.4/LICENSE-APACHE",
+        "foreign-types-macros-0.2.4/LICENSE-MIT"
+      ],
+      "package": "foreign-types-macros",
+      "version": "0.2.4"
+    },
+    {
+      "notices": [
+        "foreign-types-shared-0.3.1/LICENSE-APACHE",
+        "foreign-types-shared-0.3.1/LICENSE-MIT"
+      ],
+      "package": "foreign-types-shared",
+      "version": "0.3.1"
+    },
+    {
+      "notices": [
+        "fs_extra-1.3.0/LICENSE"
+      ],
+      "package": "fs_extra",
+      "version": "1.3.0"
+    },
+    {
+      "notices": [
+        "fslock-0.2.1/LICENSE"
+      ],
+      "package": "fslock",
+      "version": "0.2.1"
+    },
+    {
+      "notices": [
+        "glob-0.3.4/LICENSE-APACHE",
+        "glob-0.3.4/LICENSE-MIT"
+      ],
+      "package": "glob",
+      "version": "0.3.4"
+    },
+    {
+      "notices": [
+        "hashbrown-0.17.1/LICENSE-APACHE",
+        "hashbrown-0.17.1/LICENSE-MIT"
+      ],
+      "package": "hashbrown",
+      "version": "0.17.1"
+    },
+    {
+      "notices": [
+        "humantime-2.4.0/LICENSE-APACHE",
+        "humantime-2.4.0/LICENSE-MIT"
+      ],
+      "package": "humantime",
+      "version": "2.4.0"
+    },
+    {
+      "notices": [
+        "ident_case-1.0.1/LICENSE"
+      ],
+      "package": "ident_case",
+      "version": "1.0.1"
+    },
+    {
+      "notices": [
+        "indexmap-2.14.2/LICENSE-APACHE",
+        "indexmap-2.14.2/LICENSE-MIT"
+      ],
+      "package": "indexmap",
+      "version": "2.14.2"
+    },
+    {
+      "notices": [
+        "intrusive-collections-0.10.3/LICENSE-APACHE",
+        "intrusive-collections-0.10.3/LICENSE-MIT"
+      ],
+      "package": "intrusive-collections",
+      "version": "0.10.3"
+    },
+    {
+      "notices": [
+        "itertools-0.13.0/LICENSE-APACHE",
+        "itertools-0.13.0/LICENSE-MIT"
+      ],
+      "package": "itertools",
+      "version": "0.13.0"
+    },
+    {
+      "notices": [
+        "itoa-1.0.19/LICENSE-APACHE",
+        "itoa-1.0.19/LICENSE-MIT"
+      ],
+      "package": "itoa",
+      "version": "1.0.19"
+    },
+    {
+      "notices": [
+        "libc-0.2.189/LICENSE-APACHE",
+        "libc-0.2.189/LICENSE-MIT"
+      ],
+      "package": "libc",
+      "version": "0.2.189"
+    },
+    {
+      "notices": [
+        "libloading-0.8.9/LICENSE"
+      ],
+      "package": "libloading",
+      "version": "0.8.9"
+    },
+    {
+      "notices": [
+        "libm-0.2.16/LICENSE.txt"
+      ],
+      "package": "libm",
+      "version": "0.2.16"
+    },
+    {
+      "notices": [
+        "log-0.4.35/LICENSE-APACHE",
+        "log-0.4.35/LICENSE-MIT"
+      ],
+      "package": "log",
+      "version": "0.4.35"
+    },
+    {
+      "notices": [
+        "memchr-2.8.3/COPYING",
+        "memchr-2.8.3/LICENSE-MIT"
+      ],
+      "package": "memchr",
+      "version": "2.8.3"
+    },
+    {
+      "notices": [
+        "minimal-lexical-0.2.1/LICENSE-APACHE",
+        "minimal-lexical-0.2.1/LICENSE-MIT",
+        "minimal-lexical-0.2.1/LICENSE.md"
+      ],
+      "package": "minimal-lexical",
+      "version": "0.2.1"
+    },
+    {
+      "notices": [
+        "nom-7.1.3/LICENSE"
+      ],
+      "package": "nom",
+      "version": "7.1.3"
+    },
+    {
+      "notices": [
+        "num-traits-0.2.19/LICENSE-APACHE",
+        "num-traits-0.2.19/LICENSE-MIT"
+      ],
+      "package": "num-traits",
+      "version": "0.2.19"
+    },
+    {
+      "notices": [
+        "octets-0.3.7/COPYING"
+      ],
+      "package": "octets",
+      "version": "0.3.7"
+    },
+    {
+      "notices": [
+        "once_cell-1.21.4/LICENSE-APACHE",
+        "once_cell-1.21.4/LICENSE-MIT"
+      ],
+      "package": "once_cell",
+      "version": "1.21.4"
+    },
+    {
+      "notices": [
+        "openssl-macros-0.1.1/LICENSE-APACHE",
+        "openssl-macros-0.1.1/LICENSE-MIT"
+      ],
+      "package": "openssl-macros",
+      "version": "0.1.1"
+    },
+    {
+      "notices": [
+        "proc-macro2-1.0.107/LICENSE-APACHE",
+        "proc-macro2-1.0.107/LICENSE-MIT"
+      ],
+      "package": "proc-macro2",
+      "version": "1.0.107"
+    },
+    {
+      "notices": [
+        "qlog-0.18.2/COPYING"
+      ],
+      "package": "qlog",
+      "version": "0.18.2"
+    },
+    {
+      "notices": [
+        "quiche-0.30.1/COPYING"
+      ],
+      "package": "quiche",
+      "version": "0.30.1"
+    },
+    {
+      "notices": [
+        "quote-1.0.47/LICENSE-APACHE",
+        "quote-1.0.47/LICENSE-MIT"
+      ],
+      "package": "quote",
+      "version": "1.0.47"
+    },
+    {
+      "notices": [
+        "regex-1.13.1/LICENSE-APACHE",
+        "regex-1.13.1/LICENSE-MIT"
+      ],
+      "package": "regex",
+      "version": "1.13.1"
+    },
+    {
+      "notices": [
+        "regex-automata-0.4.18/LICENSE-APACHE",
+        "regex-automata-0.4.18/LICENSE-MIT"
+      ],
+      "package": "regex-automata",
+      "version": "0.4.18"
+    },
+    {
+      "notices": [
+        "regex-syntax-0.8.11/LICENSE-APACHE",
+        "regex-syntax-0.8.11/LICENSE-MIT"
+      ],
+      "package": "regex-syntax",
+      "version": "0.8.11"
+    },
+    {
+      "notices": [
+        "rust_decimal-1.43.0/LICENSE"
+      ],
+      "package": "rust_decimal",
+      "version": "1.43.0"
+    },
+    {
+      "notices": [
+        "rustc-hash-2.1.3/LICENSE-APACHE",
+        "rustc-hash-2.1.3/LICENSE-MIT"
+      ],
+      "package": "rustc-hash",
+      "version": "2.1.3"
+    },
+    {
+      "notices": [
+        "serde-1.0.229/LICENSE-APACHE",
+        "serde-1.0.229/LICENSE-MIT"
+      ],
+      "package": "serde",
+      "version": "1.0.229"
+    },
+    {
+      "notices": [
+        "serde_core-1.0.229/LICENSE-APACHE",
+        "serde_core-1.0.229/LICENSE-MIT"
+      ],
+      "package": "serde_core",
+      "version": "1.0.229"
+    },
+    {
+      "notices": [
+        "serde_derive-1.0.229/LICENSE-APACHE",
+        "serde_derive-1.0.229/LICENSE-MIT"
+      ],
+      "package": "serde_derive",
+      "version": "1.0.229"
+    },
+    {
+      "notices": [
+        "serde_json-1.0.154/LICENSE-APACHE",
+        "serde_json-1.0.154/LICENSE-MIT"
+      ],
+      "package": "serde_json",
+      "version": "1.0.154"
+    },
+    {
+      "notices": [
+        "serde_with-3.24.0/LICENSE-APACHE",
+        "serde_with-3.24.0/LICENSE-MIT"
+      ],
+      "package": "serde_with",
+      "version": "3.24.0"
+    },
+    {
+      "notices": [
+        "serde_with_macros-3.24.0/LICENSE-APACHE",
+        "serde_with_macros-3.24.0/LICENSE-MIT"
+      ],
+      "package": "serde_with_macros",
+      "version": "3.24.0"
+    },
+    {
+      "notices": [
+        "sfv-0.9.4/LICENSE-APACHE",
+        "sfv-0.9.4/LICENSE-MIT"
+      ],
+      "package": "sfv",
+      "version": "0.9.4"
+    },
+    {
+      "notices": [
+        "shlex-1.3.0/LICENSE-APACHE",
+        "shlex-1.3.0/LICENSE-MIT"
+      ],
+      "package": "shlex",
+      "version": "1.3.0"
+    },
+    {
+      "notices": [
+        "shlex-2.0.1/LICENSE-APACHE",
+        "shlex-2.0.1/LICENSE-MIT"
+      ],
+      "package": "shlex",
+      "version": "2.0.1"
+    },
+    {
+      "notices": [
+        "slab-0.4.12/LICENSE"
+      ],
+      "package": "slab",
+      "version": "0.4.12"
+    },
+    {
+      "notices": [
+        "smallvec-1.16.5/LICENSE-APACHE",
+        "smallvec-1.16.5/LICENSE-MIT"
+      ],
+      "package": "smallvec",
+      "version": "1.16.5"
+    },
+    {
+      "notices": [
+        "strsim-0.11.1/LICENSE"
+      ],
+      "package": "strsim",
+      "version": "0.11.1"
+    },
+    {
+      "notices": [
+        "syn-2.0.119/LICENSE-APACHE",
+        "syn-2.0.119/LICENSE-MIT"
+      ],
+      "package": "syn",
+      "version": "2.0.119"
+    },
+    {
+      "notices": [
+        "syn-3.0.10/LICENSE-APACHE",
+        "syn-3.0.10/LICENSE-MIT"
+      ],
+      "package": "syn",
+      "version": "3.0.10"
+    },
+    {
+      "notices": [
+        "unicode-ident-1.0.27/LICENSE-APACHE",
+        "unicode-ident-1.0.27/LICENSE-MIT",
+        "unicode-ident-1.0.27/LICENSE-UNICODE"
+      ],
+      "package": "unicode-ident",
+      "version": "1.0.27"
+    },
+    {
+      "notices": [
+        "windows-sys-0.59.0/license-apache-2.0",
+        "windows-sys-0.59.0/license-mit"
+      ],
+      "package": "windows-sys",
+      "version": "0.59.0"
+    },
+    {
+      "notices": [
+        "windows-targets-0.52.6/license-apache-2.0",
+        "windows-targets-0.52.6/license-mit"
+      ],
+      "package": "windows-targets",
+      "version": "0.52.6"
+    },
+    {
+      "notices": [
+        "windows_aarch64_msvc-0.52.6/license-apache-2.0",
+        "windows_aarch64_msvc-0.52.6/license-mit"
+      ],
+      "package": "windows_aarch64_msvc",
+      "version": "0.52.6"
+    },
+    {
+      "notices": [
+        "windows_x86_64_msvc-0.52.6/license-apache-2.0",
+        "windows_x86_64_msvc-0.52.6/license-mit"
+      ],
+      "package": "windows_x86_64_msvc",
+      "version": "0.52.6"
+    },
+    {
+      "notices": [
+        "zmij-1.0.23/LICENSE-MIT"
+      ],
+      "package": "zmij",
+      "version": "1.0.23"
+    }
+  ],
+  "schema": 1,
+  "targets": [
+    "android-arm64",
+    "linux-amd64",
+    "linux-arm64",
+    "macos-arm64",
+    "windows-amd64",
+    "windows-arm64"
+  ]
+}

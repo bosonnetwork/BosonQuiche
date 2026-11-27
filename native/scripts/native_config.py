@@ -33,9 +33,14 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
+from typing import Optional
 import urllib.request
 import xml.etree.ElementTree as ET
+
+if sys.version_info < (3, 9):
+    raise SystemExit('Python 3.9 or later is required')
 
 ROOT = Path(__file__).resolve().parents[2]
 UPSTREAM = json.loads((ROOT / 'native/quiche.json').read_text())
@@ -54,22 +59,29 @@ class Target:
     machine: str
     jni: str
     baseline: str
+    android_abi: Optional[str] = None
 
 
-TARGETS = {target.platform: target for target in (
-    Target('linux-amd64', 'x86_64-unknown-linux-gnu', 'linux-x86_64',
-           'libboson_quiche.so', 'EM_X86_64', 'linux', 'glibc 2.28'),
-    Target('linux-arm64', 'aarch64-unknown-linux-gnu', 'linux-aarch64',
-           'libboson_quiche.so', 'EM_AARCH64', 'linux', 'glibc 2.28'),
-    Target('macos-arm64', 'aarch64-apple-darwin', 'macos-aarch64',
-           'libboson_quiche.dylib', 'arm64', 'darwin', 'macOS 11.0'),
-    Target('android-arm64', 'aarch64-linux-android', 'android-aarch64',
-           'libboson_quiche.so', 'EM_AARCH64', 'android', 'Android API 33'),
-    Target('windows-amd64', 'x86_64-pc-windows-msvc', 'windows-x86_64',
-           'boson_quiche.dll', 'IMAGE_FILE_MACHINE_AMD64', 'win32', 'Windows 10'),
-    Target('windows-arm64', 'aarch64-pc-windows-msvc', 'windows-aarch64',
-           'boson_quiche.dll', 'IMAGE_FILE_MACHINE_ARM64', 'win32', 'Windows 10'),
-)}
+def load_platforms(root=ROOT):
+    """Read the single platform matrix shared with CMake and the Maven build."""
+    document = json.loads((root / 'native/platforms.json').read_text())
+    if document.get('schema') != 1 or not isinstance(document.get('targets'), list):
+        raise ValueError('Unsupported native/platforms.json schema')
+    targets = {}
+    for spec in document['targets']:
+        target = Target(spec['id'], spec['rust'], spec['classifier'], spec['library'],
+                        spec['machine'], spec['jni'], spec['baseline'], spec.get('android_abi'))
+        if target.platform in targets:
+            raise ValueError('Duplicate platform in native/platforms.json: ' + target.platform)
+        if (target.jni == 'android') != (target.android_abi is not None):
+            raise ValueError('android_abi must be set exactly for Android targets')
+        targets[target.platform] = target
+    if not targets:
+        raise ValueError('native/platforms.json defines no targets')
+    return targets
+
+
+TARGETS = load_platforms()
 
 
 def target_id(value):

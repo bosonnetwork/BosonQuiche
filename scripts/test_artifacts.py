@@ -63,7 +63,13 @@ def check(repository, root=config.ROOT):
     api = pom('boson-quiche', 'jar')
     for dependency in api.findall('m:dependencies/m:dependency', NS):
         require(dependency.findtext('m:scope', namespaces=NS) == 'test', 'API has a runtime dependency')
-    require(not api.findall('.//m:profile/m:dependencies', NS), 'API selects runtime dependencies by profile')
+    # Only test-scope selections are allowed here: they never reach consumers and
+    # let the JNI suite consume the same classifier artifact a desktop user would.
+    for profile in api.findall('m:profiles/m:profile', NS):
+        for dependency in profile.findall('m:dependencies/m:dependency', NS):
+            require(dependency.findtext('m:scope', namespaces=NS) == 'test',
+                    'API selects a runtime dependency by profile: '
+                    + str(dependency.findtext('m:artifactId', namespaces=NS)))
     pom('boson-quiche-native', 'pom')
     android = pom('boson-quiche-android', 'aar')
     dependencies = android.findall('m:dependencies/m:dependency', NS)

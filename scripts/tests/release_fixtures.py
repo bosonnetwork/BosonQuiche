@@ -82,6 +82,7 @@ def create(root):
         'android/src',
         'native/scripts',
         'native/docker',
+        'native/cmake',
         'scripts',
         '.mvn',
     ):
@@ -99,6 +100,8 @@ def create(root):
         'native/Cargo.lock',
         'native/toolchains.json',
         'native/CMakeLists.txt',
+        'native/CMakePresets.json',
+        'native/platforms.json',
         'native/copyright-header.txt',
     ):
         destination = root / file

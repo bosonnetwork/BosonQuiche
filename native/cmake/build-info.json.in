@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "generated_by": "native/CMakeLists.txt",
+  "target": "@BOSON_TARGET@",
+  "classifier": "@BOSON_CLASSIFIER@",
+  "rust_target": "@RUST_TARGET@",
+  "quiche_version": "@boson_tag@",
+  "quiche_archive_sha256": "@boson_archive_sha256@",
+  "quiche_header_sha256": "@boson_header_sha256@",
+  "features": [@boson_features_toml@],
+  "binding_version": "@BOSON_BINDING_VERSION@",
+  "binding_abi": @BOSON_BINDING_ABI@,
+  "jni_platform": "@BOSON_JNI_PLATFORM@",
+  "build_type": "@CMAKE_BUILD_TYPE@",
+  "cmake_version": "@CMAKE_VERSION@",
+  "cmake_generator": "@CMAKE_GENERATOR@",
+  "compiler": "@CMAKE_C_COMPILER_ID@ @CMAKE_C_COMPILER_VERSION@",
+  "osx_deployment_target": "@CMAKE_OSX_DEPLOYMENT_TARGET@"
+}

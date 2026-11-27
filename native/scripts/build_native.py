@@ -40,9 +40,9 @@ from native_config import (ROOT, TAG, ARCHIVE_URL, ARCHIVE_SHA256, FEATURES, TAR
                            digest, identity, output, write_if_changed)
 
 
-def execute(*command, env=None):
+def execute(*command, env=None, cwd=None):
     print('Running:', *command, flush=True)
-    subprocess.run(command, env=env, check=True)
+    subprocess.run(command, env=env, cwd=cwd, check=True)
 
 
 def toolchain_identity(target, pins):
@@ -83,7 +83,7 @@ def toolchain_identity(target, pins):
 def build_inputs(target, source_hash, binding_version, pins, tools):
     spec = TARGETS[target]
     return {'platform': target, 'rust_target': spec.rust, 'classifier': spec.classifier,
-            'binary_name': spec.binary, 'android_abi': 'arm64-v8a' if spec.jni == 'android' else None,
+            'binary_name': spec.binary, 'android_abi': spec.android_abi,
             'baseline': spec.baseline, 'binding_version': binding_version, 'binding_abi': config.binding_abi(),
             'quiche_version': TAG, 'quiche_tag': TAG, 'quiche_archive_url': ARCHIVE_URL,
             'quiche_archive_sha256': ARCHIVE_SHA256, 'source_tree_sha256': source_hash,
@@ -94,7 +94,10 @@ def build_inputs(target, source_hash, binding_version, pins, tools):
             'jni_sources_sha256': identity({str(path.relative_to(ROOT / 'native')): digest(path) for path in
                 sorted((ROOT / 'native/src/main/c').glob('*')) if path.is_file()}),
             'jni_declarations_sha256': digest(ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
-            'cmake_sha256': digest(ROOT / 'native/CMakeLists.txt')}
+            'cmake_sha256': digest(ROOT / 'native/CMakeLists.txt'),
+            'cmake_presets_sha256': digest(ROOT / 'native/CMakePresets.json'),
+            'cmake_support_sha256': identity({str(path.relative_to(ROOT / 'native')): digest(path)
+                for path in sorted((ROOT / 'native/cmake').rglob('*')) if path.is_file()})}
 
 
 def jni_headers(target, pins):
@@ -190,37 +193,184 @@ def inspect_binary(binary, target, work):
     return {'machines': machines, 'jni_exports': sorted(set(names)), 'runtime_tested': False}
 
 
-def compile_jni(target, source, work, inputs, pins, cache, headers, test_natives=False):
-    """Compile only against headers; no target JVM library is linked."""
-    report = json.loads((work / 'proof.json').read_text())
-    archive = Path(report['archive'])
+def preset_for(target):
+    """Select the configure preset that describes this target."""
+    presets = json.loads((ROOT / 'native/CMakePresets.json').read_text())
+    for preset in presets.get('configurePresets', []):
+        if preset.get('cacheVariables', {}).get('BOSON_TARGET') == target:
+            return preset['name']
+    return target
+
+
+def rust_archive_path(target, build):
+    name = 'boson_quiche_build.lib' if target.startswith('windows-') else 'libboson_quiche_build.a'
+    return build / 'rust' / TARGETS[target].rust / 'release' / name
+
+
+def build_environment(target, pins, cache, container):
+    """Select the tools for this target. Build flags belong to CMake."""
+    if container:
+        # The pinned image provides the compilers and the shared Cargo cache lives
+        # in the mounted volume, so keep the image environment and only redirect
+        # Cargo's home.
+        return dict(os.environ, CARGO_HOME='/cache/cargo-home')
     env = config.clean_environment()
-    flags = []
-    if target == 'macos-arm64':
-        flags += ['-DCMAKE_TOOLCHAIN_FILE=' + str(work / 'macos.cmake')]
+    env['CARGO_HOME'] = str(cache / ('cargo-home-macos' if platform.system() == 'Darwin' else 'cargo-home'))
+    if target.startswith('linux-'):
+        env.update(CC='gcc', CXX='g++', LIBCLANG_PATH='/usr/lib64')
     elif target == 'android-arm64':
-        flags += ['-DCMAKE_TOOLCHAIN_FILE=' + str(work / 'android.cmake')]
-    elif target.startswith('windows-'):
-        sdk = cache / ('xwin-llvm20-sdk' + pins['windows_sdk'] + '-crt' + pins['windows_crt'])
-        flags += ['-DCMAKE_TOOLCHAIN_FILE=' + str(sdk / 'cmake/clang-cl' / (TARGETS[target].rust + '-toolchain.cmake'))]
-        env['PATH'] = str(sdk) + os.pathsep + env['PATH']
-    cmake = work / 'jni'
-    build = json.loads((work / 'inputs.json').read_text())
-    execute('cmake', '-S', str(inputs), '-B', str(cmake), '-DCMAKE_BUILD_TYPE=Release',
-            '-DBOSON_SOURCE=' + str(inputs / 'src/main/c'),
-            '-DBOSON_JAVA_SOURCE=' + str(ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
-            '-DQUICHE_INCLUDE=' + str(source / 'quiche/include'),
-            '-DQUICHE_ARCHIVE=' + str(archive), '-DLINK_SUPPORT=' + str(work / 'link-support'),
-            '-DJNI_INCLUDE=' + str(headers),
-            '-DJNI_PLATFORM_INCLUDE=' + str(headers / TARGETS[target].jni),
-            '-DBOSON_BINDING_ABI=' + str(build['binding_abi']),
-            '-DBOSON_BINDING_VERSION=' + build['binding_version'],
-            '-DBOSON_TEST_NATIVES=' + ('ON' if test_natives else 'OFF'),
-            *flags, env=env)
-    execute('cmake', '--build', str(cmake), '--parallel', '4', env=env)
-    binary = cmake / TARGETS[target].binary
-    inspect_binary(binary, target, work)
-    return binary
+        ndk = toolchains.ndk_path(pins)
+        tools = ndk / 'toolchains/llvm/prebuilt/darwin-x86_64/bin'
+        clang = tools / ('aarch64-linux-android' + str(pins['android']['api']) + '-clang')
+        env.update(ANDROID_NDK_HOME=str(ndk),
+                   CC_aarch64_linux_android=str(clang),
+                   CXX_aarch64_linux_android=str(clang) + '++',
+                   AR_aarch64_linux_android=str(tools / 'llvm-ar'),
+                   CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=str(clang),
+                   BINDGEN_EXTRA_CLANG_ARGS='--target=aarch64-linux-android' + str(pins['android']['api']),
+                   LIBCLANG_PATH=str(tools.parent / 'lib'))
+    return env
+
+
+def link_support(target, work, cargo_home):
+    """Collect the MSVC import libraries the Rust archive expects."""
+    directory = work / 'link-support'
+    if directory.exists():
+        shutil.rmtree(directory)
+    directory.mkdir()
+    if target.startswith('windows-'):
+        arch = 'x86_64' if target == 'windows-amd64' else 'aarch64'
+        for library in sorted(cargo_home.glob('registry/src/*/windows_' + arch + '_msvc-*/lib/*.lib')):
+            shutil.copyfile(library, directory / library.name)
+    return directory
+def configure_build_install(target, source, work, inputs, pins, cache, stage, env, container, test_natives):
+    """Run the CMake project for this target and return its build report."""
+    spec = TARGETS[target]
+    build = work / 'cmake'
+    install = work / 'install'
+    cargo_home = Path(env['CARGO_HOME'])
+    command = ['cmake', '--preset', preset_for(target), '-B', str(build),
+               '-DCMAKE_INSTALL_PREFIX=' + str(install),
+               '-DQUICHE_SOURCE=' + str(source),
+               '-DJNI_INCLUDE=' + str(jni_headers(target, pins)),
+               '-DBOSON_BINDING_ABI=' + str(inputs['binding_abi']),
+               '-DBOSON_BINDING_VERSION=' + inputs['binding_version'],
+               '-DBOSON_TEST_NATIVES=' + ('ON' if test_natives else 'OFF')]
+    windows_sdk = None
+    if target.startswith('windows-'):
+        windows_sdk = toolchains.prepare_windows_toolchain(target, pins, cache, work, env, source, build)
+        # The preset reads the toolchain path from the environment; the driver
+        # only selects it. The archive is prebuilt because cargo-xwin owns the
+        # MSVC toolchain integration.
+        env['BOSON_WINDOWS_TOOLCHAIN'] = str(windows_sdk['toolchain'])
+        command += ['-DQUICHE_ARCHIVE=' + str(rust_archive_path(target, build)),
+                    '-DLINK_SUPPORT=' + str(link_support(target, work, cargo_home)),
+                    '-DBOSON_CARGO_SUBCOMMAND=xwin']
+    compiler = output('rustc', '--version').strip()
+    if not toolchains.rust_version_supported(compiler, pins['rust_minimum']):
+        raise RuntimeError('Rust ' + pins['rust_minimum'] + ' or later is required; found ' + compiler)
+    installed = output('rustup', 'target', 'list', '--installed').split()
+    if spec.rust not in installed:
+        raise RuntimeError('Missing Rust target ' + spec.rust + "; run: rustup target add " + spec.rust)
+    execute(*command, env=env, cwd=ROOT / 'native')
+    build_command = ['cmake', '--build', str(build), '--parallel', '4']
+    if stage == 'archive':
+        build_command += ['--target', 'quiche_ffi']
+    execute(*build_command, env=env, cwd=ROOT / 'native')
+
+    archive = rust_archive_path(target, build)
+    machines = toolchains.inspect_archive(archive, target, work, llvm_tools())
+    report = {'status': 'passed', 'stage': 'quiche-static-archive', 'runtime_tested': False,
+              'platform': target, 'rust_target': spec.rust, 'quiche_tag': TAG,
+              'source_archive_sha256': ARCHIVE_SHA256,
+              'cargo_lock_sha256': digest(ROOT / 'native/Cargo.lock'),
+              'rustc': output('rustc', '--version').strip(), 'features': FEATURES,
+              'archive': str(archive), 'archive_sha256': digest(archive),
+              'machines': machines, 'ffi_symbols_checked': toolchains.SYMBOLS,
+              'cmake': output('cmake', '--version').splitlines()[0],
+              'llvm_inspector': output(str(llvm_tools() / 'llvm-nm'), '--version').strip(),
+              'container': container}
+    if windows_sdk:
+        report.update(windows_sdk['report'])
+        report['c_api_link_proof'] = toolchains.link_windows_smoke(
+            archive, target, work, source, windows_sdk['sdk'], llvm_tools(), env,
+            (ROOT / 'native/copyright-header.txt').read_text())
+    elif target == 'android-arm64':
+        ndk = toolchains.ndk_path(pins)
+        report.update(ndk=pins['android'], compiler=output(
+            str(ndk / 'toolchains/llvm/prebuilt/darwin-x86_64/bin/clang'), '--version').strip())
+    elif target.startswith('linux-'):
+        report.update(compiler=output('gcc', '--version').splitlines()[0],
+                      libc=output('ldd', '--version').splitlines()[0])
+    else:
+        report['compiler'] = output('xcrun', 'clang', '--version').strip()
+
+    if stage == 'jni':
+        # Install into an empty tree so a cached work directory can never
+        # contribute stale files to the staged artifact.
+        shutil.rmtree(install, ignore_errors=True)
+        execute('cmake', '--install', str(build), env=env)
+        binary = install / 'native' / spec.classifier / spec.binary
+        if not binary.is_file():
+            raise ValueError('CMake did not install ' + spec.binary + ' for ' + target)
+        report.update(inspect_binary(binary, target, work))
+    report['licenses'] = install_notices(work)
+    (work / 'proof.json').write_text(json.dumps(report, indent=2) + '\n')
+    return report
+def install_notices(work):
+    """Copy the committed dependency notices into the build tree."""
+    source = ROOT / 'native/notices'
+    index = json.loads((source / 'notices.json').read_text())
+    destination = work / 'licenses'
+    if destination.exists():
+        shutil.rmtree(destination)
+    for record in index['packages']:
+        for relative in record['notices']:
+            target = destination / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source / relative, target)
+    return index['packages']
+
+
+def update_notices(pins):
+    """Regenerate the committed dependency notices from every target graph."""
+    work = ROOT / '.build/notices'
+    if work.exists():
+        shutil.rmtree(work)
+    work.mkdir(parents=True)
+    source = config.prepare_source('')
+    driver = toolchains.prepare_driver(source, work, ROOT / 'native/Cargo.lock',
+                                       ROOT / 'native/copyright-header.txt')
+    env = config.clean_environment()
+    env['CARGO_HOME'] = str(ROOT / '.build/cache' /
+                            ('cargo-home-macos' if platform.system() == 'Darwin' else 'cargo-home'))
+    cargo_home = Path(env['CARGO_HOME'])
+    merged = {}
+    for target, spec in sorted(TARGETS.items()):
+        directory = work / target
+        directory.mkdir(parents=True, exist_ok=True)
+        records = toolchains.collect_licenses(driver, source, directory, cargo_home,
+                                              spec.rust, env, offline=False)
+        for record in records:
+            files = merged.setdefault((record['package'], record['version']), {})
+            for relative in record['notices']:
+                files.setdefault(relative, work / target / 'licenses' / relative)
+    destination = ROOT / 'native/notices'
+    if destination.exists():
+        shutil.rmtree(destination)
+    destination.mkdir(parents=True)
+    packages = []
+    for (name, version), files in sorted(merged.items()):
+        for relative, origin in sorted(files.items()):
+            target = destination / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(origin, target)
+        packages.append({'package': name, 'version': version, 'notices': sorted(files)})
+    document = {'schema': 1, 'cargo_lock_sha256': digest(ROOT / 'native/Cargo.lock'),
+                'targets': sorted(TARGETS), 'packages': packages}
+    (destination / 'notices.json').write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
+    print('Wrote', len(packages), 'package notices to', destination)
+    return document
 
 
 def export_container_outputs(work, destination, target, stage, test_natives):
@@ -229,16 +379,13 @@ def export_container_outputs(work, destination, target, stage, test_natives):
     archive = Path(report['archive'])
     shutil.copyfile(archive, destination / archive.name)
     report['archive'] = str(destination / archive.name)
-    for name in ('licenses', 'link-support', 'jni'):
+    for name in ('licenses', 'link-support', 'install'):
         shutil.rmtree(destination / name, ignore_errors=True)
     for name in ('licenses', 'link-support'):
         if (work / name).is_dir():
             shutil.copytree(work / name, destination / name)
     if stage == 'jni':
-        (destination / 'jni').mkdir()
-        shutil.copyfile(work / 'jni' / TARGETS[target].binary, destination / 'jni' / TARGETS[target].binary)
-        if test_natives:
-            shutil.copytree(work / 'jni/test-libraries', destination / 'jni/test-libraries')
+        shutil.copytree(work / 'install', destination / 'install')
     (destination / 'proof.json').write_text(json.dumps(report, indent=2) + '\n')
 
 
@@ -250,10 +397,9 @@ def build_in_container(target, stage, pins, test_natives, destination=Path('/out
         work.mkdir(parents=True, exist_ok=True)
         write_if_changed(work / 'inputs.json', json.dumps(inputs, indent=2) + '\n')
         try:
-            toolchains.build_archive(target, source, work, ROOT / 'native', pins, cache)
-            if stage == 'jni':
-                compile_jni(target, source, work, ROOT / 'native', pins, cache,
-                            jni_headers(target, pins), test_natives)
+            env = build_environment(target, pins, cache, container=True)
+            configure_build_install(target, source, work, inputs, pins, cache, stage, env,
+                                    container=True, test_natives=test_natives)
             export_container_outputs(work, destination, target, stage, test_natives)
         finally:
             # Keep failure diagnostics available after the disposable container exits.
@@ -268,6 +414,8 @@ def build_in_container(target, stage, pins, test_natives, destination=Path('/out
 def run_container(target, source, work, tools, stage, test_natives=False):
     """Mount selected sources and final outputs; keep heavy work in a Docker volume."""
     volume = config.docker_cache_volume(target, tools['image_arch'])
+    # inspect_binary checks the exported symbols against the Java declarations,
+    # so that single file travels with the sources.
     mounts = [(source, '/source', True), (work, '/output', False),
               (ROOT / 'native', '/project/native', True),
               (ROOT / 'api/src/main/java/io/bosonnetwork/quiche/Native.java',
@@ -341,7 +489,8 @@ def stage_output(target, stage, work, inputs, revision):
     if temporary.exists():
         shutil.rmtree(temporary)
     temporary.mkdir(parents=True)
-    binary = work / 'jni' / TARGETS[target].binary if stage == 'jni' else Path(report['archive'])
+    binary = (work / 'install' / 'native' / TARGETS[target].classifier / TARGETS[target].binary
+              if stage == 'jni' else Path(report['archive']))
     shutil.copyfile(binary, temporary / binary.name)
     for name in ('licenses', 'link-support'):
         if (work / name).exists():
@@ -366,28 +515,6 @@ def stage_output(target, stage, work, inputs, revision):
     return destination
 
 
-def stage_maven(directory, target):
-    """Restore host resources after Maven clean without deleting native inputs."""
-    manifest = validate_manifest(directory, target, 'jni')
-    generated = ROOT / 'api/target/native-test-resources'
-    native = generated / 'native' / TARGETS[target].classifier
-    native.mkdir(parents=True, exist_ok=True)
-    for name in (TARGETS[target].binary, 'build.json'):
-        shutil.copyfile(directory / name, native / name)
-    licenses = generated / 'META-INF/native-licenses'
-    if licenses.exists():
-        shutil.rmtree(licenses)
-    shutil.copytree(directory / 'licenses', licenses)
-    return manifest
-
-
-def stage_test_natives(work):
-    directory = ROOT / 'api/target/native-test-libraries'
-    if directory.exists():
-        shutil.rmtree(directory)
-    shutil.copytree(work / 'jni/test-libraries', directory)
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', default='')
@@ -401,6 +528,8 @@ def main(argv=None):
     parser.add_argument('--inspect', action='store_true', help='Validate staged outputs without building.')
     parser.add_argument('--report', action='store_true', help='Validate and print all selected manifests as JSON.')
     parser.add_argument('--preflight', action='store_true')
+    parser.add_argument('--update-notices', action='store_true',
+                        help='Regenerate the committed dependency notices.')
     parser.add_argument('--fetch-ndk', action='store_true')
     parser.add_argument('--test-natives', action='store_true', help='Build isolated native loader test fixtures.')
     parser.add_argument('--inside', action='store_true', help=argparse.SUPPRESS)
@@ -411,6 +540,9 @@ def main(argv=None):
         return 0
     if args.preflight:
         return toolchains.preflight(pins)
+    if args.update_notices:
+        update_notices(pins)
+        return 0
     stage = 'archive' if args.quiche_only else args.stage
     if args.inside:
         build_in_container(args.target, stage, pins, args.test_natives)
@@ -447,10 +579,6 @@ def main(argv=None):
                     archive = 'boson_quiche_build.lib' if target.startswith('windows-') else 'libboson_quiche_build.a'
                     toolchains.inspect_archive(destination / archive, target, inspected, llvm_tools())
                 reports.append(manifest)
-                if args.skip.lower() == 'true' and stage == 'jni' and len(targets) == 1 and target == config.host_target():
-                    stage_maven(destination, target)
-                    if args.test_natives:
-                        stage_test_natives(ROOT / '.build/native' / target / identity(inputs))
                 if not args.report:
                     print('Validated:', target, stage)
                 continue
@@ -460,15 +588,11 @@ def main(argv=None):
             if 'image_id' in tools:
                 run_container(target, source, work, tools, stage, args.test_natives)
             else:
-                toolchains.build_archive(target, source, work, ROOT / 'native', pins, ROOT / '.build/cache')
-                if stage == 'jni':
-                    compile_jni(target, source, work, ROOT / 'native', pins, ROOT / '.build/cache',
-                                jni_headers(target, pins), args.test_natives)
+                env = build_environment(target, pins, ROOT / '.build/cache', container=False)
+                configure_build_install(target, source, work, inputs, pins,
+                                        ROOT / '.build/cache', stage, env, container=False,
+                                        test_natives=args.test_natives)
             destination = stage_output(target, stage, work, inputs, revision)
-            if stage == 'jni' and not args.all and target == config.host_target():
-                stage_maven(destination, target)
-                if args.test_natives:
-                    stage_test_natives(work)
             print('Staged:', target, stage, destination)
     if args.report:
         print(json.dumps({'generated_by': 'native/scripts/build_native.py --report', 'builds': reports}, indent=2))

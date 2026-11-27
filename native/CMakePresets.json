@@ -1,0 +1,111 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/target/cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BOSON_TEST_NATIVES": "ON"
+      }
+    },
+    {
+      "name": "host-macos-arm64",
+      "displayName": "macOS arm64 host build",
+      "description": "Host build for the macOS arm64 classifier. Maven supplies BOSON_BINDING_ABI and BOSON_BINDING_VERSION.",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "BOSON_TARGET": "macos-arm64",
+        "BOSON_CLASSIFIER": "macos-aarch64",
+        "RUST_TARGET": "aarch64-apple-darwin",
+        "BOSON_JNI_PLATFORM": "darwin",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0"
+      }
+    },
+    {
+      "name": "host-linux-amd64",
+      "displayName": "Linux amd64 host build",
+      "description": "Host build for the linux-x86_64 classifier. Maven supplies BOSON_BINDING_ABI and BOSON_BINDING_VERSION.",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "BOSON_TARGET": "linux-amd64",
+        "BOSON_CLASSIFIER": "linux-x86_64",
+        "RUST_TARGET": "x86_64-unknown-linux-gnu",
+        "BOSON_JNI_PLATFORM": "linux"
+      }
+    },
+    {
+      "name": "host-linux-arm64",
+      "displayName": "Linux arm64 host build",
+      "description": "Host build for the linux-aarch64 classifier. Maven supplies BOSON_BINDING_ABI and BOSON_BINDING_VERSION.",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "BOSON_TARGET": "linux-arm64",
+        "BOSON_CLASSIFIER": "linux-aarch64",
+        "RUST_TARGET": "aarch64-unknown-linux-gnu",
+        "BOSON_JNI_PLATFORM": "linux"
+      }
+    },
+    {
+      "name": "android-arm64",
+      "displayName": "Android arm64 (NDK)",
+      "description": "Cross build for the Android AAR. Requires ANDROID_NDK_HOME.",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/android-arm64.cmake",
+      "cacheVariables": {
+        "BOSON_TARGET": "android-arm64",
+        "BOSON_CLASSIFIER": "android-aarch64",
+        "RUST_TARGET": "aarch64-linux-android",
+        "BOSON_JNI_PLATFORM": "android"
+      }
+    },
+    {
+      "name": "windows-amd64",
+      "displayName": "windows-amd64 (MSVC cross build)",
+      "description": "Requires BOSON_WINDOWS_TOOLCHAIN pointing at the cargo-xwin clang-cl toolchain file.",
+      "inherits": "base",
+      "toolchainFile": "$env{BOSON_WINDOWS_TOOLCHAIN}",
+      "cacheVariables": {
+        "BOSON_TARGET": "windows-amd64",
+        "BOSON_CLASSIFIER": "windows-x86_64",
+        "RUST_TARGET": "x86_64-pc-windows-msvc",
+        "BOSON_JNI_PLATFORM": "win32"
+      }
+    },
+    {
+      "name": "windows-arm64",
+      "displayName": "windows-arm64 (MSVC cross build)",
+      "description": "Requires BOSON_WINDOWS_TOOLCHAIN pointing at the cargo-xwin clang-cl toolchain file.",
+      "inherits": "base",
+      "toolchainFile": "$env{BOSON_WINDOWS_TOOLCHAIN}",
+      "cacheVariables": {
+        "BOSON_TARGET": "windows-arm64",
+        "BOSON_CLASSIFIER": "windows-aarch64",
+        "RUST_TARGET": "aarch64-pc-windows-msvc",
+        "BOSON_JNI_PLATFORM": "win32"
+      }
+    }
+  ]
+}

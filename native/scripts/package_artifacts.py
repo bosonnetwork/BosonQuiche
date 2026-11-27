@@ -57,6 +57,9 @@ def machine(path):
 
 def validate(target, staged=None, root=ROOT):
     directory = staged or root / '.build/staged' / target / 'jni'
+    if not (directory / 'build.json').is_file():
+        raise ValueError('No staged native build for ' + target + ' in ' + str(directory)
+                         + '; run python3 native/scripts/build_native.py --target ' + target)
     manifest = build.validate_manifest(directory, target, 'jni')
     inputs = manifest['inputs']
     expected = {'binding_version': config.validate_inputs(root), 'binding_abi': config.binding_abi(root),
@@ -68,6 +71,9 @@ def validate(target, staged=None, root=ROOT):
                 'toolchains': json.loads((root / 'native/toolchains.json').read_text()),
                 'cargo_lock_sha256': digest(root / 'native/Cargo.lock'),
                 'cmake_sha256': digest(root / 'native/CMakeLists.txt'),
+                'cmake_presets_sha256': digest(root / 'native/CMakePresets.json'),
+                'cmake_support_sha256': identity({str(path.relative_to(root / 'native')): digest(path)
+                    for path in sorted((root / 'native/cmake').rglob('*')) if path.is_file()}),
                 'jni_declarations_sha256': digest(root / 'api/src/main/java/io/bosonnetwork/quiche/Native.java'),
                 'jni_sources_sha256': identity({str(path.relative_to(root / 'native')): digest(path)
                     for path in sorted((root / 'native/src/main/c').glob('*')) if path.is_file()})}
@@ -117,6 +123,7 @@ def desktop(targets, output):
 
 
 def android(output):
+    spec = TARGETS['android-arm64']
     directory, _ = validate('android-arm64')
     temporary = output.with_name(output.name + '.assembling')
     if temporary.exists():
@@ -125,9 +132,9 @@ def android(output):
     files = {'AndroidManifest.xml': (ROOT / 'android/src/main/AndroidManifest.xml').read_bytes(),
              'proguard.txt': (ROOT / 'android/src/main/proguard.txt').read_bytes(),
              'R.txt': b'',
-             'jni/arm64-v8a/libboson_quiche.so': (directory / 'libboson_quiche.so').read_bytes(),
-             'META-INF/boson-quiche-native/android-aarch64/build.json': (directory / 'build.json').read_bytes()}
-    files.update(native_notices(directory, 'META-INF/boson-quiche-native/android-aarch64'))
+             'jni/' + spec.android_abi + '/' + spec.binary: (directory / spec.binary).read_bytes(),
+             'META-INF/boson-quiche-native/' + spec.classifier + '/build.json': (directory / 'build.json').read_bytes()}
+    files.update(native_notices(directory, 'META-INF/boson-quiche-native/' + spec.classifier))
     for name, content in files.items():
         file = temporary / name
         file.parent.mkdir(parents=True, exist_ok=True)

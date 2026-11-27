@@ -36,14 +36,16 @@
         <quiche.binding.abi>1</quiche.binding.abi>
         <quiche.source />
         <native.skip>false</native.skip>
+        <!-- Only signing, bundling and publishing require the release gates. -->
+        <release.enforce.skip>true</release.enforce.skip>
         <junit.version>5.14.4</junit.version>
         <junit.platform.version>1.14.4</junit.platform.version>
         <!-- Used implicitly by Maven archive plugins for reproducible entry timestamps. -->
         <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
     </properties>
     <modules>
-        <module>api</module>
         <module>native</module>
+        <module>api</module>
     </modules>
     <build>
         <pluginManagement>
@@ -60,8 +62,18 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>3.5.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.14.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>3.8.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -114,6 +126,38 @@
             </plugins>
         </pluginManagement>
         <defaultGoal>package</defaultGoal>
+        <plugins>
+            <!-- Release builds must name the prepared release explicitly. This runs
+                 only for signing, bundling and publishing, and only in the
+                 aggregator, so a missing or relative path fails immediately
+                 instead of interpolating the literal ${release.directory}. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>release-requirements</id>
+                        <inherited>false</inherited>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${release.enforce.skip}</skip>
+                            <fail>true</fail>
+                            <rules>
+                                <requireProperty>
+                                    <property>release.directory</property>
+                                    <message>Signing and publishing require -Drelease.directory=&lt;absolute path&gt;.</message>
+                                    <regex>^(/|[A-Za-z]:[\\/]).+$</regex>
+                                    <regexMessage>release.directory must be an absolute path.</regexMessage>
+                                </requireProperty>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
     <profiles>
         <profile>
@@ -157,6 +201,9 @@
         </profile>
         <profile>
             <id>release-signing</id>
+            <properties>
+                <release.enforce.skip>false</release.enforce.skip>
+            </properties>
             <activation>
                 <property>
                     <name>release.directory</name>
@@ -258,6 +305,9 @@
         </profile>
         <profile>
             <id>release-bundle</id>
+            <properties>
+                <release.enforce.skip>false</release.enforce.skip>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -297,6 +347,9 @@
         </profile>
         <profile>
             <id>publish</id>
+            <properties>
+                <release.enforce.skip>false</release.enforce.skip>
+            </properties>
             <build>
                 <plugins>
                     <plugin>

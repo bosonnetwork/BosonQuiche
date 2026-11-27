@@ -142,7 +142,9 @@ qualification and block publication.
 ## Sign and validate locally
 
 An absolute `release.directory` activates distribution packaging and GPG signing.
-Maven runs the normal compilation, tests and package-phase attachments. Each
+Maven Enforcer rejects a missing or relative path during `validate`, before any
+project script runs, and a release version is required. Maven then runs the
+normal compilation, tests and package-phase attachments. Each
 module's POM, JARs or AAR must match the prepared SHA-256 checksums before
 verify-phase GPG signing. A further check during `install` precedes deployment.
 A different output stops the build: use the same JDK/toolchains and unchanged
@@ -158,10 +160,11 @@ mvn -s .mvn/settings.xml \
     -Drelease.directory="$PWD/.build/releases/0.30.1.1" verify
 ```
 
-`native.skip=true` reuses the host JNI build after the native builder's strict
-cache/input checks; Java compilation, tests and archive packaging still run.
-Omit it to rebuild the host JNI library. A changed native manifest also requires
-fresh validation and a new prepared candidate.
+`native.skip=true` reuses an existing `native/target/native-install` tree instead
+of compiling, which keeps the JNI library and loader fixtures available; Java
+compilation, tests and archive packaging still run. Omit it to rebuild the host
+JNI library, which is required after `mvn clean`. A changed native manifest also
+requires fresh validation and a new prepared candidate.
 
 This user-run command uses the selected GPG signing key/agent. Supply an explicit
 `-Dgpg.homedir` and `-Dgpg.keyname` when choosing another key. The automated

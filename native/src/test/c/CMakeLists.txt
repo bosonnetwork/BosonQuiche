@@ -21,13 +21,25 @@
 cmake_minimum_required(VERSION 3.22)
 project(boson_quiche_loader_fixtures LANGUAGES C)
 
+# This directory is both a stand-alone project (used by the cross-platform
+# runtime driver) and a subdirectory of the JNI project (used by the Maven host
+# build). Keep both entry points working.
+if(NOT JNI_PLATFORM_INCLUDE)
+    set(JNI_PLATFORM_INCLUDE "${JNI_INCLUDE}/${JNI_PLATFORM}")
+endif()
+if(DEFINED BOSON_TEST_NATIVES)
+    set(fixture_output "${CMAKE_BINARY_DIR}/test-libraries")
+else()
+    set(fixture_output "${CMAKE_BINARY_DIR}/../test-libraries")
+endif()
+
 foreach(kind abi version upstream legacy)
     add_library(loader_${kind} SHARED loader_stub.c)
-    target_include_directories(loader_${kind} PRIVATE "${JNI_INCLUDE}" "${JNI_INCLUDE}/${JNI_PLATFORM}")
+    target_include_directories(loader_${kind} PRIVATE "${JNI_INCLUDE}" "${JNI_PLATFORM_INCLUDE}")
     target_compile_definitions(loader_${kind} PRIVATE
         BOSON_BINDING_ABI=${BOSON_BINDING_ABI} BOSON_BINDING_VERSION="${BOSON_BINDING_VERSION}"
         STUB_${kind}=1)
     set_target_properties(loader_${kind} PROPERTIES C_STANDARD 11 MSVC_RUNTIME_LIBRARY MultiThreaded
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/../test-libraries"
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/../test-libraries")
+        LIBRARY_OUTPUT_DIRECTORY "${fixture_output}"
+        RUNTIME_OUTPUT_DIRECTORY "${fixture_output}")
 endforeach()
